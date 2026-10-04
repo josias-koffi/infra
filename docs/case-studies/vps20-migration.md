@@ -2,6 +2,19 @@
 
 > Journal réel de la reprise d’un Dokploy en production (en anglais). Pour la méthode générale, voir [Reprendre un Dokploy existant](../getting-started/existing-dokploy.md).
 
+## Outcome (2026-10-04)
+
+| Step | Result |
+|---|---|
+| Safety net | 4 dumps with exact row counts + media / api_data archives, copied off the VPS |
+| Platform | settings + 2 R2 destinations imported, Dokploy self-backup created, 0 destroyed |
+| Jemima staging / production | compose moved / adopted in place: **no container restarted**, same volumes (now `external`), identical row counts; first off-site backups of DB and media |
+| Jobspark staging / production | same, plus the existing R2 backups imported unchanged (retention 35 kept, legacy prefixes kept); version assertion green |
+| Deploy rules | in the manifests: staging `deploy: auto` (push on develop), production `deploy: manual` (run from main) |
+| Removed | projects `jemima-staging`, `jobspark-staging` (empty after the move), old app pipelines and their `infra/dokploy` (states released with `state rm`) |
+
+Still to do: §3b (one service per component), §4 (koklo-front, koklo-ee-staging), §5 clean-up.
+
 Starting point (audit 2026-10-04, read-only): Dokploy v0.30.6 on VPS20 with
 four compose stacks managed from the app repos, plus `koklo-front` and
 `koklo-ee-staging` running as plain compose outside Dokploy. Every step below

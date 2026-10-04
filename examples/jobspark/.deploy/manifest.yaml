@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/josias-koffi/infra/main/schema/manifest.v1.json
-# Jobspark — migration step 1: the existing compose stacks moved into ONE
-# Dokploy project (jobspark) with production + staging environments.
+# Jobspark — deployed by the josias-koffi/infra platform: one Dokploy project
+# `jobspark`, environments production and staging (mode compose, the stack of
+# infra/compose/dokploy-stack.yml).
 #
 # VOLUMES — read before touching volumePrefix:
 #   production runs as compose `cvspark-vxlxow` and mounts jobspark_*
@@ -27,6 +28,9 @@ databases:
   postgres: { type: postgres, service: postgres, database: cvforge, user: cvforge }
 
 backups:
+  # Live retention kept for both environments (the module default for staging
+  # is 7: switching would prune 28 existing staging dumps).
+  keep: { production: 35, staging: 35 }
   # Legacy R2 layout kept: restore_check's r2_fetch reads db/<env>/.
   prefix:
     db: { production: db/production/, staging: db/staging/ }
@@ -98,6 +102,7 @@ vars:
 environments:
   production:
     branch: main
+    deploy: manual                    # a push on main never deploys: Run workflow from main
     volumePrefix: jobspark            # LIVE prod volumes (compose cvspark-vxlxow)
     externalVolumes: true
     domains: { landing: jobspark.koklo.dev, web: jobspark-app.koklo.dev, api: jobspark-api.koklo.dev }
@@ -106,7 +111,7 @@ environments:
       EMAIL_FROM: Jobspark <no-reply@koklo.dev>
       R2_BACKUP_BUCKET: koklo-db-backups
   staging:
-    branch: develop
+    branch: develop                   # deploy: auto (default): every push on develop deploys
     volumePrefix: cvspark-staging     # LIVE staging volumes (compose jobspark-staging-rdzqb4)
     externalVolumes: true
     domains: { landing: jobspark-staging.koklo.dev, web: jobspark-app-staging.koklo.dev, api: jobspark-api-staging.koklo.dev }
