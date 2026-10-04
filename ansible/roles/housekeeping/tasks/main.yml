@@ -1,0 +1,59 @@
+---
+- name: Ensure journald drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Cap the journal size
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/size.conf
+    content: |
+      [Journal]
+      SystemMaxUse={{ housekeeping_journald_max_use }}
+    mode: "0644"
+  notify: Restart journald
+
+- name: Install the Docker housekeeping script
+  ansible.builtin.template:
+    src: docker-housekeeping.sh.j2
+    dest: /usr/local/sbin/docker-housekeeping
+    mode: "0755"
+
+- name: Install the housekeeping service and timer
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/{{ item.name }}"
+    content: "{{ item.content }}"
+    mode: "0644"
+  loop:
+    - name: docker-housekeeping.service
+      content: |
+        [Unit]
+        Description=Prune unused Docker images and build cache
+        Requires=docker.service
+        After=docker.service
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/sbin/docker-housekeeping
+    - name: docker-housekeeping.timer
+      content: |
+        [Unit]
+        Description=Daily Docker housekeeping
+        [Timer]
+        OnCalendar={{ housekeeping_on_calendar }}
+        RandomizedDelaySec=15m
+        Persistent=true
+        [Install]
+        WantedBy=timers.target
+  notify: Reload systemd
+
+- name: Flush handlers before enabling the timer
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable the housekeeping timer
+  ansible.builtin.systemd:
+    name: docker-housekeeping.timer
+    enabled: true
+    state: started
+  # In --check the unit file was not written, so systemd cannot know it yet.
+  ignore_errors: "{{ ansible_check_mode }}"

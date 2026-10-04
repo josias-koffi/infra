@@ -1,0 +1,14 @@
+---
+# Provisions the Dokploy manager (VPS20 today). Safe to re-run on the live
+# server: base/docker converge, the dokploy role never reinstalls a running
+# panel, housekeeping only adds a timer.
+#
+#   make setup-manager            # or: ansible-playbook playbooks/setup-manager.yml --check --diff
+- name: Setup the Dokploy manager
+  hosts: dokploy_manager
+  become: true
+  roles:
+    - base
+    - docker
+    - dokploy
+    - housekeeping

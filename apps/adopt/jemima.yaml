@@ -1,0 +1,13 @@
+# One-shot adoption of the live Jemima services (ids read from the Dokploy DB
+# on 2026-10-04). The project `jemima` is kept; the compose of the old
+# `jemima-staging` project MOVES into its new `staging` environment (an
+# environment_id change: in place, same container, same volumes).
+# Delete this file once both environments are applied.
+project: 2povgyOB8f2nAi_W5SE5i
+environments:
+  production:
+    compose: QzJv0p7YjyDEbX-w2dOfe          # appName jemima-8ppofu
+    domains: { app: eYq46w5G9kXXNOiYATxtK, minio: j4RjgcYZFuJRNDS45Uk3o }
+  staging:
+    compose: L3b8zcvfYrGh1kaTv3sHL          # appName jemima-staging-mtcbsk
+    domains: { app: OkQme9aKbDIUPPNr63AQB, minio: CWshalHZFkUee40-GEIM1 }

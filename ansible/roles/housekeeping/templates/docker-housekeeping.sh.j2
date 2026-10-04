@@ -1,0 +1,10 @@
+#!/bin/sh
+# Managed by Ansible (infra/roles/housekeeping). Purges what no container
+# references: unused images and build cache. Stopped containers are kept (an
+# image used by a stopped container is not pruned either), so a stack stopped
+# on purpose stays restartable. Volumes are NEVER pruned — see docs/purge.md.
+set -eu
+echo "before: $(docker system df --format '{{ "{{" }}.Type{{ "}}" }}={{ "{{" }}.Size{{ "}}" }}' | tr '\n' ' ')"
+docker image prune -af --filter "until={{ housekeeping_image_max_age }}"
+docker builder prune -af --filter "until={{ housekeeping_builder_max_age }}"
+echo "after:  $(docker system df --format '{{ "{{" }}.Type{{ "}}" }}={{ "{{" }}.Size{{ "}}" }}' | tr '\n' ' ')"

@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/josias-koffi/infra/main/schema/manifest.v1.json
+# Reference manifest for a NEW app: one Dokploy service per component.
+apiVersion: deploy/v1
+name: sample
+server: vps20
+mode: services
+
+secrets: [DB_PASSWORD, CACHE_PASSWORD, SESSION_SECRET]   # <KEY>_PASSWORD per database/cache
+
+apps:
+  web:
+    image: ghcr.io/josias-koffi/sample-web
+    port: 3000
+    domain: web
+    uses: [api]                       # API_URL=https://<api domain>
+    resources: { cpus: 0.5, memory: 512m }
+    secrets: [SESSION_SECRET]         # this app only sees these secrets
+  api:
+    image: ghcr.io/josias-koffi/sample-api
+    port: 8080
+    domain: api
+    uses: [db, cache]                 # DATABASE_URL, REDIS_URL, …
+    volumes: { uploads: /app/uploads } # <volumePrefix>_uploads, backed up daily
+    resources: { cpus: 1, memory: 1g }
+workers:
+  jobs:
+    image: ghcr.io/josias-koffi/sample-api
+    command: node
+    args: [dist/worker.js]
+    uses: [db, cache]
+    resources: { memory: 256m }
+
+databases:
+  db: { type: postgres, version: 16-alpine, database: sample, user: sample, resources: { memory: 512m } }
+caches:
+  cache: { type: redis, version: 7-alpine }
+
+environments:
+  production:
+    branch: main
+    domains: { web: sample.example.com, api: sample-api.example.com }
+  staging:
+    branch: develop
+    domains: { web: sample-staging.example.com, api: sample-api-staging.example.com }
+    overrides:
+      apps: { api: { resources: { memory: 512m } } }

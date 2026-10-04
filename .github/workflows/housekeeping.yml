@@ -1,0 +1,37 @@
+# Weekly purge of old GHCR image versions.
+# Server-side pruning runs daily on each node (Ansible role housekeeping +
+# Dokploy Docker cleanup); this covers the registry.
+name: Housekeeping
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ghcr:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # One line per image of every deployed app. Keeps the 20 newest
+          # versions; branch/env tags are never deleted.
+          - { owner: josias-koffi, package: jobspark-web }
+          - { owner: josias-koffi, package: jobspark-landing }
+          - { owner: josias-koffi, package: jobspark-api }
+          - { owner: josias-koffi, package: jobspark-puppeteer }
+          - { owner: josias-koffi, package: jemima-portfolio }
+    steps:
+      - uses: actions/delete-package-versions@v5
+        with:
+          owner: ${{ matrix.owner }}
+          package-name: ${{ matrix.package }}
+          package-type: container
+          min-versions-to-keep: 20
+          ignore-versions: '^(latest|main|develop|prod|production|staging)$'
+          token: ${{ secrets.GHCR_ADMIN_TOKEN }}
+

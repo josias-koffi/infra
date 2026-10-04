@@ -1,0 +1,7 @@
+---
+# Unused images older than this are pruned. Images of running or stopped
+# containers are never touched by `docker image prune`.
+housekeeping_image_max_age: 168h
+housekeeping_builder_max_age: 168h
+housekeeping_journald_max_use: 500M
+housekeeping_on_calendar: "*-*-* 04:30:00"

@@ -1,0 +1,10 @@
+.env
+ansible/inventory/hosts
+*.retry
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+tfplan
+destroy.tfplan
+.idea/

@@ -1,0 +1,81 @@
+---
+# Installs Dokploy on the manager node, idempotently.
+#
+# A running Dokploy is NEVER reinstalled: the installer re-inits Swarm and
+# rewrites /etc/dokploy, which would wipe the panel of a live server. On an
+# existing install the role only checks the version, and upgrades through the
+# official `update` entrypoint when dokploy_allow_upgrade is true.
+
+- name: Look for an existing Dokploy service
+  ansible.builtin.command: docker service inspect dokploy --format '{{ "{{" }}.Spec.TaskTemplate.ContainerSpec.Image{{ "}}" }}'
+  register: dokploy_service
+  changed_when: false
+  failed_when: false
+  # Read-only, and the install decision depends on it: run it in --check too,
+  # or a dry run would believe Dokploy is absent.
+  check_mode: false
+
+- name: Make sure the Docker daemon answered
+  ansible.builtin.command: docker info --format '{{ "{{" }}.Swarm.LocalNodeState{{ "}}" }}'
+  register: dokploy_swarm_state
+  changed_when: false
+  check_mode: false
+
+- name: Read the running Dokploy version
+  ansible.builtin.set_fact:
+    dokploy_running_version: "{{ (dokploy_service.stdout.split('@')[0]).split(':')[-1] if dokploy_service.rc == 0 else '' }}"
+
+- name: Report the running Dokploy version
+  ansible.builtin.debug:
+    msg: "Dokploy running: {{ dokploy_running_version | default('none', true) }} — pinned: {{ dokploy_version }}"
+
+- name: Install Dokploy (fresh node only)
+  # Both conditions: no dokploy service AND no Swarm. A node already in a Swarm
+  # without the service is an anomaly to look at by hand, never a reinstall.
+  when:
+    - dokploy_service.rc != 0
+    - dokploy_swarm_state.stdout == 'inactive'
+  block:
+    - name: Download the Dokploy installer
+      ansible.builtin.get_url:
+        url: https://dokploy.com/install.sh
+        dest: /root/dokploy-install.sh
+        mode: "0700"
+
+    - name: Run the Dokploy installer
+      ansible.builtin.command: bash /root/dokploy-install.sh
+      environment:
+        DOKPLOY_VERSION: "{{ dokploy_version }}"
+        ADVERTISE_ADDR: "{{ dokploy_advertise_addr }}"
+      args:
+        creates: /etc/dokploy/traefik/traefik.yml
+
+- name: Stop on a Swarm node without Dokploy
+  ansible.builtin.fail:
+    msg: "Swarm is {{ dokploy_swarm_state.stdout }} but no dokploy service runs: inspect by hand, the role will not reinstall over it."
+  when:
+    - dokploy_service.rc != 0
+    - dokploy_swarm_state.stdout != 'inactive'
+
+- name: Refuse a silent version drift
+  ansible.builtin.fail:
+    msg: >-
+      Dokploy {{ dokploy_running_version }} is running but {{ dokploy_version }} is pinned.
+      Pin the running version in roles/dokploy/defaults, or re-run with
+      -e dokploy_allow_upgrade=true to upgrade.
+  when:
+    - dokploy_service.rc == 0
+    - dokploy_running_version != dokploy_version
+    - not dokploy_allow_upgrade | bool
+
+- name: Upgrade Dokploy to the pinned version
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -sSL https://dokploy.com/install.sh | DOKPLOY_VERSION={{ dokploy_version }} bash -s update
+  args:
+    executable: /bin/bash
+  when:
+    - dokploy_service.rc == 0
+    - dokploy_running_version != dokploy_version
+    - dokploy_allow_upgrade | bool
+  changed_when: true

@@ -1,0 +1,15 @@
+---
+# Prepares an extra server that the Dokploy manager deploys to.
+#
+#   1. add the host under [dokploy_nodes] in ansible/inventory/hosts
+#   2. make add-node NODE=<inventory name>
+#   3. add it to platform/nodes.yaml and `make platform-apply`
+#      (creates the dokploy_server record; Dokploy installs its runtime over SSH)
+- name: Prepare a Dokploy remote node
+  hosts: "{{ node | default('dokploy_nodes') }}"
+  become: true
+  roles:
+    - base
+    - docker
+    - dokploy-node
+    - housekeeping

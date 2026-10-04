@@ -1,0 +1,9 @@
+---
+# Pinned Dokploy release. Bumping it here is the only supported upgrade path:
+# the role then runs the official updater, never a fresh install.
+dokploy_version: v0.30.6
+# Address the Swarm advertises. The installer guesses a private IP otherwise,
+# which is wrong on a single-NIC VPS.
+dokploy_advertise_addr: "{{ ansible_host }}"
+# Set to true to let the role upgrade a running Dokploy to dokploy_version.
+dokploy_allow_upgrade: false

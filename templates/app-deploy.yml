@@ -1,0 +1,37 @@
+# Deploy workflow of an app repo — copy to .github/workflows/deploy.yml.
+# Everything (Dokploy project, environments, services, backups, DNS, smoke
+# tests) comes from .deploy/manifest.yaml through josias-koffi/infra.
+#
+# Repo secrets : DOKPLOY_API_KEY, R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
+#                CF_API_TOKEN + CF_ZONE_ID (only with dns: cloudflare)
+# Env secrets  : the names listed in the manifest, in the GitHub environments
+#                `staging` and `production`.
+name: Deploy
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [staging, production]
+      image_tag:
+        description: Image tag — an older sha rolls back
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # build:                       <- the app's own image build, pushing ghcr.io/<owner>/<image>:<short sha>
+  #   if: inputs.image_tag == ''
+
+  deploy:
+    # needs: build
+    uses: josias-koffi/infra/.github/workflows/deploy.yml@main
+    with:
+      environment: ${{ inputs.environment }}
+      image_tag: ${{ inputs.image_tag }}
+    secrets: inherit

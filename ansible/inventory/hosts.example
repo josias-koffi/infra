@@ -1,0 +1,10 @@
+# The Dokploy panel (exactly one host).
+[dokploy_manager]
+manager ansible_host=203.0.113.10 ansible_user=root
+
+# Servers the panel deploys to (docs/add-node.md).
+[dokploy_nodes]
+# node2 ansible_host=203.0.113.20 ansible_user=root
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3

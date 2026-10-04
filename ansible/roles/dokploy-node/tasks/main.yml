@@ -1,0 +1,23 @@
+---
+# Prepares a remote server that the Dokploy manager deploys to. Docker and the
+# base hardening come from the `base` and `docker` roles; Dokploy itself then
+# finishes the setup over SSH ("Setup server" in the panel, or the
+# dokploy_server resource of platform/).
+
+- name: Require the manager public key
+  ansible.builtin.assert:
+    that: dokploy_node_public_key | length > 0
+    fail_msg: Set DOKPLOY_NODE_PUBLIC_KEY (tofu -chdir=platform output -raw dokploy_node_public_key).
+
+- name: Authorize the Dokploy manager for root
+  ansible.posix.authorized_key:
+    user: root
+    key: "{{ dokploy_node_public_key }}"
+    state: present
+
+- name: Allow root login with a key only
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin'
+    line: PermitRootLogin prohibit-password
+  notify: Restart ssh

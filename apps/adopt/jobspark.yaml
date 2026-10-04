@@ -1,0 +1,21 @@
+# One-shot adoption of the live Jobspark services (ids read from the Dokploy DB
+# on 2026-10-04). The project `jobspark` is kept; the compose of the old
+# `jobspark-staging` project MOVES into its new `staging` environment.
+#
+#   production = compose `jobspark`         appName cvspark-vxlxow           volumes jobspark_*
+#   staging    = compose `jobspark-staging` appName jobspark-staging-rdzqb4  volumes cvspark-staging_*
+#
+# Before the first apply, drop these resources from the cvforge states
+# (tofu state rm, NO destroy) — see docs/migration.md.
+project: TxTRWFHlsry6EfTUfij-q
+environments:
+  production:
+    compose: 2pp2jBymRryLITJvz8srN
+    domains: { landing: RwHwBxRmVWd1XiVNaDY_R, web: wpmezcB7RguP0hTvZn6_j, api: 6lPhINuIaP6QvY39BHoMZ }
+    backups: { postgres: _Qim_oI5lhoCwXhahduEn }
+    volumeBackups: { api_data: xVdqHIDzu99ha1rIPyhVM }
+  staging:
+    compose: -aF81sE4-3cobTwtaMk3S
+    domains: { landing: renmyR4ClQ462RzcmrSQP, web: nkgZIsZ3LBXTRVOGGIok6, api: HbTeSTFuEdQU98ENK1sqy }
+    backups: { postgres: AGGGnXjsr6juTKmqGOpPC }
+    volumeBackups: { api_data: NPC08V4IXOQIJUr7Hyyx1 }

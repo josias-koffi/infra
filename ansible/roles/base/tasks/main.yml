@@ -1,0 +1,133 @@
+---
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - ufw
+      - fail2ban
+      - unattended-upgrades
+      - apt-listchanges
+      - htop
+      - git
+      - tmux
+    state: present
+    update_cache: true
+
+- name: Ensure node admin user exists
+  ansible.builtin.user:
+    name: "{{ node_admin_user }}"
+    shell: /bin/bash
+    groups: sudo
+    append: true
+    state: present
+
+- name: Install operator SSH public keys for node admin user
+  ansible.posix.authorized_key:
+    user: "{{ node_admin_user }}"
+    key: "{{ item }}"
+    state: present
+  loop: "{{ ssh_public_keys }}"
+
+- name: Harden SSH daemon baseline
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?{{ item.key }}\\s+"
+    line: "{{ item.key }} {{ item.value }}"
+    create: false
+    backrefs: false
+  loop:
+    - { key: "PasswordAuthentication", value: "no" }
+    - { key: "PubkeyAuthentication", value: "yes" }
+    - { key: "PermitRootLogin", value: "prohibit-password" }
+    - { key: "ChallengeResponseAuthentication", value: "no" }
+    - { key: "MaxAuthTries", value: "3" }
+    - { key: "LoginGraceTime", value: "30" }
+    - { key: "X11Forwarding", value: "no" }
+    - { key: "ClientAliveInterval", value: "300" }
+    - { key: "ClientAliveCountMax", value: "2" }
+  notify: Restart ssh
+
+- name: Configure UFW default incoming policy
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+
+- name: Configure UFW default outgoing policy
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+
+- name: Ensure UFW allows required TCP ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ security_ufw_allowed_tcp_ports | default(['22']) }}"
+
+- name: Ensure UFW is enabled
+  community.general.ufw:
+    state: enabled
+
+- name: Configure fail2ban jail for sshd
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.d/sshd.local
+    mode: "0644"
+    content: |
+      [sshd]
+      enabled = true
+      banaction = ufw
+      maxretry = 5
+      findtime = 10m
+      bantime = 1h
+  notify: Restart fail2ban
+
+- name: Enable unattended security updates
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+- name: Ensure fail2ban is running
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: true
+
+- name: Manage swap
+  when: swap_size_mb | int > 0
+  block:
+    - name: Create swapfile
+      ansible.builtin.command:
+        cmd: fallocate -l {{ swap_size_mb }}M /swapfile
+        creates: /swapfile
+      register: swap_created
+
+    - name: Set swapfile permissions
+      ansible.builtin.file:
+        path: /swapfile
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Format swapfile
+      ansible.builtin.command:
+        cmd: mkswap /swapfile
+      when: swap_created.changed
+      changed_when: true
+
+    - name: Enable swap
+      ansible.builtin.command:
+        cmd: swapon /swapfile
+      when: swap_created.changed
+      changed_when: true
+
+    - name: Persist swap in fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: "^/swapfile"
+        line: "/swapfile none swap sw 0 0"
+        state: present

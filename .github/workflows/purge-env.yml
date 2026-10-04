@@ -1,0 +1,103 @@
+# Deliberate removal of one environment of one app. Deploys never destroy a
+# stateful service (scripts/deploy-app.sh refuses); this is the only path.
+name: Purge environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: App repository (owner/name) holding .deploy/manifest.yaml
+        required: true
+      ref:
+        description: Ref of the manifest
+        default: main
+      environment:
+        description: Environment to remove
+        required: true
+      confirm:
+        description: Type <app>/<environment> to confirm
+        required: true
+      dry_run:
+        description: Only show what would be removed
+        type: boolean
+        default: true
+      delete_volumes:
+        description: Also delete the named volumes (after a final backup)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    environment: purge          # protected: required reviewer
+    env:
+      DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+      AWS_ENDPOINT_URL_S3: ${{ secrets.R2_ENDPOINT }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      TF_VAR_cf_zone_id: ${{ secrets.CF_ZONE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: infra }
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          path: app
+          token: ${{ secrets.APP_REPOS_READ_TOKEN }}
+      - uses: opentofu/setup-opentofu@v1
+        with: { tofu_version: 1.12.3, tofu_wrapper: false }
+      - run: pip install --quiet pyyaml
+      - name: Check confirmation
+        id: app
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import os, sys, yaml
+          m = yaml.safe_load(open("app/.deploy/manifest.yaml"))
+          env = os.environ["ENVIRONMENT"]
+          if env not in m["environments"]:
+              sys.exit(f"{env} is not an environment of {m['name']}")
+          if os.environ["CONFIRM"] != f"{m['name']}/{env}":
+              sys.exit(f"confirm must be '{m['name']}/{env}'")
+          print(f"name={m['name']}")
+          print(f"volume_prefix={m['environments'][env].get('volumePrefix', m['name'] + '-' + env)}")
+          PY
+      - name: Plan destroy
+        working-directory: infra/apps/env
+        run: |
+          tofu init -input=false -backend-config="key=apps/${{ steps.app.outputs.name }}/${{ inputs.environment }}.tfstate"
+          tofu plan -destroy -input=false -out=destroy.tfplan \
+            -var manifest_path="$GITHUB_WORKSPACE/app/.deploy/manifest.yaml" \
+            -var environment="${{ inputs.environment }}" -var image_tag=purge
+          echo "Volumes that delete_volumes would remove: ${{ steps.app.outputs.volume_prefix }}_*"
+      - name: Destroy services
+        if: ${{ !inputs.dry_run }}
+        working-directory: infra/apps/env
+        run: tofu apply -input=false destroy.tfplan
+      - name: Archive then delete volumes
+        if: ${{ !inputs.dry_run && inputs.delete_volumes }}
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          PREFIX: ${{ steps.app.outputs.volume_prefix }}
+        with:
+          host: ${{ secrets.VPS20_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: PREFIX
+          script: |
+            set -eu
+            ts=$(date +%Y%m%dT%H%M%S); out=/opt/backups/purge/$ts; mkdir -p "$out"
+            for v in $(docker volume ls -q | grep -E "^${PREFIX}_"); do
+              if docker ps -aq --filter volume="$v" | grep -q .; then
+                echo "skip $v: still used by a container"; continue
+              fi
+              docker run --rm -v "$v":/v:ro -v "$out":/out alpine tar czf "/out/$v.tgz" -C /v .
+              docker volume rm "$v" && echo "archived to $out and removed $v"
+            done

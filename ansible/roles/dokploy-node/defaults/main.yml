@@ -1,0 +1,5 @@
+---
+# Public key of the dokploy_ssh_key that the manager uses to reach this node
+# (output `dokploy_node_public_key` of platform/). Dokploy connects as root and
+# installs its own Traefik and runtime on the node.
+dokploy_node_public_key: "{{ lookup('env', 'DOKPLOY_NODE_PUBLIC_KEY') | default('', true) }}"

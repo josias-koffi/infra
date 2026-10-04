@@ -1,0 +1,88 @@
+# Reusable deploy workflow — called by every app repo:
+#
+#   jobs:
+#     deploy:
+#       needs: build
+#       uses: josias-koffi/infra/.github/workflows/deploy.yml@main
+#       with: { image_tag: "${{ needs.build.outputs.tag }}" }
+#       secrets: inherit
+#
+# The environment comes from the branch (manifest `environments.<env>.branch`)
+# unless `environment` is given. Re-running with an older image_tag rolls back.
+name: Deploy (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      image_tag:
+        description: Image tag to deploy (default — short sha of the commit)
+        type: string
+        default: ""
+      environment:
+        description: Environment to deploy (default — from the branch)
+        type: string
+        default: ""
+      manifest:
+        description: Path of the manifest in the app repo
+        type: string
+        default: .deploy/manifest.yaml
+      infra_ref:
+        description: Ref of josias-koffi/infra to deploy with
+        type: string
+        default: main
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.r.outputs.environment }}
+      image_tag: ${{ steps.r.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: r
+        env:
+          MANIFEST: ${{ inputs.manifest }}
+          INPUT_ENV: ${{ inputs.environment }}
+          INPUT_TAG: ${{ inputs.image_tag }}
+        run: |
+          env=$(python3 - <<'PY'
+          import os, yaml
+          m = yaml.safe_load(open(os.environ["MANIFEST"]))
+          want, branch = os.environ.get("INPUT_ENV"), os.environ["GITHUB_REF_NAME"]
+          print(want or next((e for e, s in m["environments"].items() if s.get("branch") == branch), ""))
+          PY
+          )
+          [ -n "$env" ] || { echo "No environment for branch $GITHUB_REF_NAME"; exit 1; }
+          echo "environment=$env" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${INPUT_TAG:-${GITHUB_SHA::7}}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: resolve
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve.outputs.environment }}
+    concurrency:
+      group: deploy-${{ github.repository }}-${{ needs.resolve.outputs.environment }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: app }
+      - uses: actions/checkout@v4
+        with:
+          repository: josias-koffi/infra
+          ref: ${{ inputs.infra_ref }}
+          path: infra
+      - uses: opentofu/setup-opentofu@v1
+        with: { tofu_version: 1.12.3, tofu_wrapper: false }
+      - run: pip install --quiet jsonschema pyyaml
+      - name: Deploy ${{ needs.resolve.outputs.environment }} @ ${{ needs.resolve.outputs.image_tag }}
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          AWS_ENDPOINT_URL_S3: ${{ secrets.R2_ENDPOINT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+        run: |
+          infra/scripts/deploy-app.sh "app/${{ inputs.manifest }}" \
+            "${{ needs.resolve.outputs.environment }}" "${{ needs.resolve.outputs.image_tag }}"

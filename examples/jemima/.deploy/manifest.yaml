@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/josias-koffi/infra/main/schema/manifest.v1.json
+# Jemima portfolio — migration step 1: the existing compose stack, moved into
+# one Dokploy project with two environments. Step 2 splits it (mode: services).
+apiVersion: deploy/v1
+name: jemima
+server: vps20
+mode: compose
+dns: external            # records still owned by infra/terraform of the app repo
+
+compose:
+  file: infra/compose/dokploy-stack.yml
+  routes:
+    app:   { service: app,   port: 3000, domain: site }
+    minio: { service: minio, port: 9000, domain: media }
+  backupVolumes:
+    - { volume: minio_data, service: minio }
+
+databases:
+  postgres: { type: postgres, service: postgres, database: jemima, user: jemima }
+
+secrets:
+  - POSTGRES_PASSWORD
+  - PAYLOAD_SECRET
+  - MINIO_ACCESS_KEY
+  - MINIO_SECRET_KEY
+  - ADMIN_EMAIL
+  - ADMIN_PASSWORD
+  - SMTP_USER
+  - SMTP_PASSWORD
+
+vars:
+  POSTGRES_DB: jemima
+  POSTGRES_USER: jemima
+  SMTP_HOST: smtp.resend.com
+  SMTP_PORT: "587"
+  SITE_ENV: ${env}
+  PROJECT: ${volume_prefix}
+
+environments:
+  production:
+    branch: main
+    volumePrefix: jemima             # volumes jemima_* (live, verified 2026-10-04)
+    externalVolumes: true
+    domains: { site: jemima.koklo.dev, media: jemima-media.koklo.dev }
+    vars:
+      EMAIL_FROM: Portfolio Jémima <no-reply@koklo.dev>
+  staging:
+    branch: develop
+    volumePrefix: jemima-staging     # volumes jemima-staging_* (live)
+    externalVolumes: true
+    domains: { site: jemima-staging.koklo.dev, media: jemima-media-staging.koklo.dev }
+    vars:
+      EMAIL_FROM: Portfolio Jémima (staging) <no-reply@koklo.dev>

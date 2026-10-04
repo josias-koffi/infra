@@ -1,0 +1,116 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/josias-koffi/infra/main/schema/manifest.v1.json
+# Jobspark — migration step 1: the existing compose stacks moved into ONE
+# Dokploy project (jobspark) with production + staging environments.
+#
+# VOLUMES — read before touching volumePrefix:
+#   production runs as compose `cvspark-vxlxow` and mounts jobspark_*
+#   staging    runs as compose `jobspark-staging-rdzqb4` and mounts cvspark-staging_*
+#   cvforge_* (old pre-Dokploy prod) and jobspark-staging_* are NOT mounted.
+apiVersion: deploy/v1
+name: jobspark
+server: vps20
+mode: compose
+dns: external            # records still owned by cvforge/infra/terraform
+
+compose:
+  file: infra/compose/dokploy-stack.yml
+  routes:
+    landing: { service: landing, port: 3001 }
+    web:     { service: web,     port: 3100 }
+    api:     { service: api,     port: 3333 }
+  backupVolumes:
+    - volume: api_data
+      service: api
+      prefix: { production: api-data/production/, staging: api-data/staging/ }
+
+databases:
+  postgres: { type: postgres, service: postgres, database: cvforge, user: cvforge }
+
+backups:
+  # Legacy R2 layout kept: restore_check's r2_fetch reads db/<env>/.
+  prefix:
+    db: { production: db/production/, staging: db/staging/ }
+
+secrets:
+  - AUTH_SESSION_SECRET
+  - POSTGRES_PASSWORD
+  - MINIO_ACCESS_KEY
+  - MINIO_SECRET_KEY
+  - OPENROUTER_API_KEY
+  - OPENAI_API_KEY
+  - SMTP_USER
+  - SMTP_PASSWORD
+  - NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+  - R2_ENDPOINT
+  - R2_BACKUP_ACCESS_KEY_ID
+  - R2_BACKUP_SECRET_ACCESS_KEY
+  - ALERT_EMAIL
+optionalSecrets:
+  - OPENROUTER_MANAGEMENT_API_KEY
+  - FRANCE_TRAVAIL_CLIENT_ID
+  - FRANCE_TRAVAIL_CLIENT_SECRET
+  - LA_BONNE_ALTERNANCE_API_KEY
+  - STRIPE_SECRET_KEY
+  - STRIPE_WEBHOOK_SECRET
+  - ATS_IP_HASH_SECRET
+  - LANDING_PROXY_SECRET
+
+vars:
+  COOKIE_DOMAIN: .koklo.dev
+  AUTH_MAGIC_LINK_TTL_MINUTES: "15"
+  AUTH_SESSION_TTL_DAYS: "7"
+  POSTGRES_DB: cvforge
+  POSTGRES_USER: cvforge
+  DATABASE_URL: 'postgres://cvforge:${secrets.POSTGRES_PASSWORD}@${app}${env == "production" ? "" : "-${env}"}-postgres:5432/cvforge'
+  POSTGRES_HOST: '${app}${env == "production" ? "" : "-${env}"}-postgres'
+  REDIS_URL: redis://redis:6379
+  MINIO_ENDPOINT: http://minio:9000
+  PUPPETEER_URL: http://puppeteer:3000
+  FRANCE_TRAVAIL_APIS: offres,romeo,rome-metiers,rome-competences,rome-fiches-metiers,rome-substitutions,marche-travail,la-bonne-boite,pages-employeurs
+  OPENROUTER_BALANCE_ALERT_THRESHOLD: "5"
+  OPENROUTER_BALANCE_CRITICAL_THRESHOLD: "0"
+  ENABLE_ZDR_CHAT: "true"
+  ENABLE_ZDR_STT: "true"
+  OPENROUTER_MODEL: mistralai/mistral-small-3.2-24b-instruct
+  OPENROUTER_FALLBACK_MODELS: ""
+  OPENROUTER_MAX_ATTEMPTS: "3"
+  INTERVIEW_REALTIME_MODEL: ""
+  INTERVIEW_REALTIME_VOICE: ""
+  INTERVIEW_REALTIME_EAGERNESS: ""
+  INTERVIEW_REALTIME_NOISE_REDUCTION: ""
+  INTERVIEW_REALTIME_TURN_DETECTION: ""
+  INTERVIEW_REALTIME_VAD_THRESHOLD: ""
+  SMTP_PROVIDER: resend
+  SMTP_SERVER: smtp.resend.com
+  SMTP_PORT: "587"
+  EMAIL_REPLY_TO: Jobspark <support@jobspark.koklo.dev>
+  RESTORE_CHECK_ALERT_TO: ${secrets.ALERT_EMAIL}   # kept out of the repo
+  RESTORE_CHECK_ENV: ${env}
+  RESTORE_CHECK_REV: ${compose_sha}
+  R2_BACKUP_ENDPOINT: ${secrets.R2_ENDPOINT}
+  R2_BACKUP_ACCESS_KEY: ${secrets.R2_BACKUP_ACCESS_KEY_ID}
+  R2_BACKUP_SECRET_ACCESS_KEY: ${secrets.R2_BACKUP_SECRET_ACCESS_KEY}
+  ATS_PUBLIC_HOURLY_LIMIT: "3"
+  ATS_PUBLIC_DAILY_LIMIT: "10"
+  ATS_PUBLIC_DAILY_BUDGET: "300"
+  CLIENT_IP_HEADER: ""
+
+environments:
+  production:
+    branch: main
+    volumePrefix: jobspark            # LIVE prod volumes (compose cvspark-vxlxow)
+    externalVolumes: true
+    domains: { landing: jobspark.koklo.dev, web: jobspark-app.koklo.dev, api: jobspark-api.koklo.dev }
+    vars:
+      AUTH_COOKIE_NAME: jobspark_session
+      EMAIL_FROM: Jobspark <no-reply@koklo.dev>
+      R2_BACKUP_BUCKET: koklo-db-backups
+  staging:
+    branch: develop
+    volumePrefix: cvspark-staging     # LIVE staging volumes (compose jobspark-staging-rdzqb4)
+    externalVolumes: true
+    domains: { landing: jobspark-staging.koklo.dev, web: jobspark-app-staging.koklo.dev, api: jobspark-api-staging.koklo.dev }
+    vars:
+      AUTH_COOKIE_NAME: jobspark_staging_session
+      EMAIL_FROM: Jobspark staging <no-reply@koklo.dev>
+      R2_BACKUP_BUCKET: koklo-db-backups-staging
