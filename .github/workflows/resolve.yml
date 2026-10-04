@@ -35,6 +35,9 @@ on:
       build:
         description: "'true' when an image must be built (no image_tag given)"
         value: ${{ jobs.resolve.outputs.build }}
+      domains:
+        description: "JSON object of the environment's domains (fromJSON(...).api)"
+        value: ${{ jobs.resolve.outputs.domains }}
 
 jobs:
   resolve:
@@ -44,6 +47,7 @@ jobs:
       environment: ${{ steps.r.outputs.environment }}
       image_tag: ${{ steps.r.outputs.image_tag }}
       build: ${{ steps.r.outputs.build }}
+      domains: ${{ steps.r.outputs.domains }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -66,8 +70,10 @@ jobs:
           by_branch = [e for e, s in envs.items() if s.get("branch") == branch]
 
           def out(deploy, env="", reason=""):
+              import json
               print(f"::notice title=Deploy::{reason}")
               with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write(f"domains={json.dumps(envs.get(env, {}).get('domains', {}))}\n")
                   f.write(f"deploy={'true' if deploy else 'false'}\n")
                   f.write(f"environment={env}\n")
                   f.write(f"image_tag={tag or os.environ.get('GITHUB_SHA', '')[:7]}\n")
