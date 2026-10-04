@@ -13,6 +13,10 @@ resource "dokploy_destination" "backups" {
   secret_access_key_wo         = var.r2_backup_credentials[each.key].secret_access_key
   access_key_wo_version        = var.r2_backup_credentials_version
   secret_access_key_wo_version = var.r2_backup_credentials_version
+
+  # Dokploy lists the bucket with these credentials before saving them: a wrong
+  # token fails the apply instead of failing tonight's backups.
+  verify_connection = true
 }
 
 # Daily backup of Dokploy itself (its database and /etc/dokploy), so a lost

@@ -5,7 +5,7 @@
 | What | Where | When |
 |---|---|---|
 | Unused images > 7 days, build cache (stopped containers kept) | every node — `docker-housekeeping.timer` (Ansible) | daily 04:30 |
-| Unused images, stopped containers, build cache | manager — Dokploy Docker cleanup, `enable_docker_cleanup` (**off until migration §5**) ; remote nodes: on | daily |
+| Unused images, build cache | manager — Dokploy Docker cleanup (`enable_docker_cleanup`, on) ; remote nodes: on | daily |
 | Traefik access log | Dokploy `log_cleanup_cron` | daily |
 | Journald | `SystemMaxUse=500M` | continuous |
 | GHCR versions beyond the 20 newest (branch/env tags kept) | `housekeeping.yml` | weekly |

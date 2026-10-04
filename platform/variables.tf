@@ -6,8 +6,8 @@ variable "dokploy_endpoint" {
 
 variable "enable_docker_cleanup" {
   type        = bool
-  description = "Dokploy daily cleanup on the manager (also removes stopped containers). Turn on after the migration clean-up."
-  default     = false
+  description = "Dokploy daily Docker cleanup on the manager. On in the live server when adopted (2026-10-04); stopped containers kept as rollback survived it."
+  default     = true
 }
 
 variable "lets_encrypt_email" {

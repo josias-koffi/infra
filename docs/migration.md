@@ -143,9 +143,6 @@ Per app, staging first:
 | volumes `jobspark-staging_*` + anonymous unused | not mounted (`docker ps -a --filter volume=…`) |
 | ≈ 30 GB of unused images | first run of `docker-housekeeping` |
 
-Then set `enable_docker_cleanup = true` in `platform/` (stopped containers are
-pruned daily from then on).
-
 ## 6. DNS adoption (optional, last)
 
 Records still live in `cvforge/infra/terraform` and
