@@ -1,40 +1,46 @@
 # Deploy workflow of an app repo — copy to .github/workflows/deploy.yml.
-# Everything (Dokploy project, environments, services, backups, DNS, smoke
-# tests) comes from .deploy/manifest.yaml. Guide: docs/guides/deploy-an-app.md
+# No rule lives here: which branch deploys which environment, and whether a push
+# deploys or only a manual run does, come from .deploy/manifest.yaml
+# (environments.<env>.branch / deploy: auto|manual). Guide: docs/guides/deploy-an-app.md
 #
 # Repo variables : DOKPLOY_URL, TF_STATE_BUCKET
 # Repo secrets   : DOKPLOY_API_KEY, R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
 #                  CF_API_TOKEN + CF_ZONE_ID (only with dns: cloudflare, the default)
-# Env secrets    : the names listed in the manifest, in the GitHub environments
-#                  `staging` and `production`.
+# Env secrets    : the names listed in the manifest, in the GitHub environments.
 name: Deploy
 
 on:
-  push:
-    branches: [main, develop]
+  push:                 # every push asks the manifest; most end after ~10 s
   workflow_dispatch:
     inputs:
       environment:
-        type: choice
-        options: [staging, production]
-      image_tag:
-        description: Existing image tag to deploy — an older sha rolls back
+        description: Environment (empty = the one of this branch)
         required: false
+      image_tag:
+        description: Existing image tag to deploy (promote / roll back) — empty builds this commit
+        required: false
+      plan_only:
+        description: Only show the plan
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   packages: write
 
 jobs:
+  resolve:
+    uses: josias-koffi/infra/.github/workflows/resolve.yml@main
+    with:
+      environment: ${{ inputs.environment }}
+      image_tag: ${{ inputs.image_tag }}
+
   build:
-    if: inputs.image_tag == ''
+    needs: resolve
+    if: needs.resolve.outputs.build == 'true'
     runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ steps.t.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
-      - id: t
-        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -44,13 +50,14 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/CHANGE-ME:${{ steps.t.outputs.tag }}
+          tags: ghcr.io/${{ github.repository_owner }}/CHANGE-ME:${{ needs.resolve.outputs.image_tag }}
 
   deploy:
-    needs: build
-    if: ${{ !failure() && !cancelled() }}
+    needs: [resolve, build]
+    if: ${{ !failure() && !cancelled() && needs.resolve.outputs.deploy == 'true' }}
     uses: josias-koffi/infra/.github/workflows/deploy.yml@main
     with:
-      environment: ${{ inputs.environment }}
-      image_tag: ${{ inputs.image_tag || needs.build.outputs.tag }}
+      environment: ${{ needs.resolve.outputs.environment }}
+      image_tag: ${{ needs.resolve.outputs.image_tag }}
+      plan_only: ${{ inputs.plan_only == true }}
     secrets: inherit

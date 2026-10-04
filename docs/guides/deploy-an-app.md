@@ -48,36 +48,20 @@ Toutes les clés sont décrites dans la [référence du manifest](../reference/m
 ## 2. Le workflow
 
 Copie [`templates/app-deploy.yml`](../../templates/app-deploy.yml) dans
-`.github/workflows/deploy.yml`, puis place le build de tes images avant le job
-`deploy`. Exemple de build :
+`.github/workflows/deploy.yml`, puis remplace `CHANGE-ME` par le nom de ton
+image (ajoute une étape `build-push` par image s'il y en a plusieurs).
 
-```yaml
-jobs:
-  build:
-    if: inputs.image_tag == ''
-    runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ steps.t.outputs.tag }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: t
-        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-      - uses: docker/login-action@v3
-        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
-      - uses: docker/build-push-action@v6
-        with:
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/sample-api:${{ steps.t.outputs.tag }}
+Ce workflow ne contient **aucune règle**. Il enchaîne trois jobs :
 
-  deploy:
-    needs: build
-    if: ${{ !failure() && !cancelled() }}
-    uses: josias-koffi/infra/.github/workflows/deploy.yml@main
-    with:
-      environment: ${{ inputs.environment }}
-      image_tag: ${{ inputs.image_tag || needs.build.outputs.tag }}
-    secrets: inherit
-```
+1. **`resolve`** (workflow réutilisable de ce repo) lit le manifest et décide
+   si cet événement déploie, vers quel environnement, et avec quel tag ;
+2. **`build`** construit et pousse l'image, seulement si `resolve` le demande
+   (pas de build quand on redéploie un tag existant) ;
+3. **`deploy`** (workflow réutilisable) déploie.
+
+Tu peux ajouter tes propres jobs entre `build` et `deploy`, par exemple un
+démarrage de l'image contre une base jetable :
+[exemple dans jemima-portfolio](https://github.com/josias-koffi/jemima-portfolio/blob/develop/.github/workflows/deploy-platform.yml).
 
 Le tag d'image est le SHA court du commit, et le manifest l'ajoute
 automatiquement aux images déclarées sans tag explicite. Si l'image est
@@ -107,13 +91,31 @@ Chaque déploiement en prod attendra alors une validation.
 
 ## 4. Déployer
 
-| Action | Effet |
-|---|---|
-| push sur `develop` | build, puis déploiement en **staging** |
-| merge sur `main` | build, puis déploiement en **production** |
-| *Run workflow* avec `environment` et `image_tag` | redéploie un tag existant : c'est le **rollback** |
+Les règles de déclenchement vivent **dans le manifest** :
 
-Déroulement d'un déploiement (`scripts/deploy-app.sh`) :
+```yaml
+environments:
+  staging:    { branch: develop }                  # deploy: auto (défaut) : chaque push sur develop déploie
+  production: { branch: main, deploy: manual }     # un push sur main ne déploie jamais
+```
+
+| Événement | Effet |
+|---|---|
+| push sur la `branch` d'un environnement en `deploy: auto` | build, puis déploiement de cet environnement |
+| push sur la `branch` d'un environnement en `deploy: manual` | rien (le run s'arrête après `resolve` avec une notice) |
+| push sur une autre branche | rien |
+| *Actions → Deploy → Run workflow*, lancé **depuis la branche de l'environnement** | déploiement de cet environnement (`environment` vide = celui de la branche) |
+| idem avec `image_tag` | redéploie un tag existant : **promotion** du tag validé en staging, ou **rollback** |
+| idem avec `plan_only` | affiche le plan sans rien appliquer |
+
+Un lancement manuel vers un environnement depuis une autre branche que la
+sienne est refusé. Pour une protection de plus, ajoute dans GitHub une règle
+de branche sur l'environnement `production` et un reviewer obligatoire.
+
+Mettre en prod ce qui tourne en staging : merge `develop` → `main`, puis
+*Run workflow* sur `main` avec `image_tag` = le tag du staging.
+
+Déroulement du job `deploy` (`scripts/deploy-app.sh`) :
 
 1. validation du manifest (schéma et cohérence) ;
 2. `apps/project` : projet et environnements ;

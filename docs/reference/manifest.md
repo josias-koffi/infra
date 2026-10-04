@@ -103,7 +103,8 @@ compose supprimé. Les volumes du fichier doivent être nommés
 ```yaml
 environments:
   production:
-    branch: main                       # branche qui déploie cet environnement
+    branch: main                       # branche de cet environnement
+    deploy: manual                     # auto (défaut) : un push sur la branche déploie ; manual : seulement un lancement manuel
     volumePrefix: myapp                # défaut : <name>-<env>
     externalVolumes: true              # mode compose
     domains: { web: app.example.com, api: api.example.com }
@@ -111,6 +112,9 @@ environments:
     overrides:                         # fusion sur deux niveaux : composant, puis resources
       apps: { api: { replicas: 2, resources: { memory: 2g } } }
 ```
+
+Le workflow de l'app ne contient aucune règle de déclenchement : le job
+`resolve` applique `branch` et `deploy` (voir [déployer une app](../guides/deploy-an-app.md#4-déployer)).
 
 Un environnement nommé `production` utilise l'environnement par défaut du
 projet Dokploy et le bucket de sauvegarde de prod. Tous les autres sont créés

@@ -1,0 +1,95 @@
+# Reusable: decides from .deploy/manifest.yaml whether this event deploys, and
+# where. App workflows call it first, so their build and deploy jobs carry no
+# rule of their own.
+#
+#   environments.<env>.branch : the branch that deploys this environment
+#   environments.<env>.deploy : auto   — a push on the branch deploys (default)
+#                               manual — only a manual run deploys
+#
+# push              → the environment whose branch is pushed, if its deploy is auto
+# workflow_dispatch → inputs.environment, or the environment of the current
+#                     branch when empty; any deploy mode. The run must start
+#                     from that environment's branch.
+name: Resolve (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        default: ""
+      image_tag:
+        type: string
+        default: ""
+      manifest:
+        type: string
+        default: .deploy/manifest.yaml
+    outputs:
+      deploy:
+        description: "'true' when this event deploys"
+        value: ${{ jobs.resolve.outputs.deploy }}
+      environment:
+        value: ${{ jobs.resolve.outputs.environment }}
+      image_tag:
+        value: ${{ jobs.resolve.outputs.image_tag }}
+      build:
+        description: "'true' when an image must be built (no image_tag given)"
+        value: ${{ jobs.resolve.outputs.build }}
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.r.outputs.deploy }}
+      environment: ${{ steps.r.outputs.environment }}
+      image_tag: ${{ steps.r.outputs.image_tag }}
+      build: ${{ steps.r.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: ${{ inputs.manifest }}
+          sparse-checkout-cone-mode: false
+      - id: r
+        env:
+          MANIFEST: ${{ inputs.manifest }}
+          INPUT_ENV: ${{ inputs.environment }}
+          INPUT_TAG: ${{ inputs.image_tag }}
+          EVENT: ${{ github.event_name }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import os, re, sys, yaml
+          m = yaml.safe_load(open(os.environ["MANIFEST"]))
+          envs = m["environments"]
+          event, branch = os.environ["EVENT"], os.environ["BRANCH"]
+          want, tag = os.environ["INPUT_ENV"], os.environ["INPUT_TAG"]
+          by_branch = [e for e, s in envs.items() if s.get("branch") == branch]
+
+          def out(deploy, env="", reason=""):
+              print(f"::notice title=Deploy::{reason}")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write(f"deploy={'true' if deploy else 'false'}\n")
+                  f.write(f"environment={env}\n")
+                  f.write(f"image_tag={tag or os.environ.get('GITHUB_SHA', '')[:7]}\n")
+                  f.write(f"build={'true' if deploy and not tag else 'false'}\n")
+              sys.exit(0)
+
+          if tag and not re.fullmatch(r"[0-9a-f]{7,40}|[A-Za-z0-9._-]{1,128}", tag):
+              sys.exit(f"invalid image_tag {tag!r}")
+
+          if event == "workflow_dispatch":
+              env = want or (by_branch[0] if by_branch else "")
+              if env not in envs:
+                  sys.exit(f"no environment {env!r} in the manifest (branch {branch})")
+              expected = envs[env].get("branch")
+              if expected and expected != branch:
+                  sys.exit(f"{env} deploys from branch {expected!r}: start the run from it (current: {branch!r})")
+              out(True, env, f"manual run → {env}")
+
+          for env in by_branch:
+              if envs[env].get("deploy", "auto") == "auto":
+                  out(True, env, f"push on {branch} → {env} (deploy: auto)")
+          if by_branch:
+              out(False, reason=f"push on {branch}: {', '.join(by_branch)} is deploy: manual — run the workflow by hand")
+          out(False, reason=f"push on {branch}: no environment deploys from this branch")
+          PY

@@ -36,9 +36,11 @@ déploiement.
 ## Un déploiement, pas à pas
 
 ```
-push develop ─▶ build des images (repo de l'app, tag = SHA court)
-             └▶ deploy.yml (réutilisable, ce repo)
-                  1. resolve      : branche → environnement (manifest)
+push / run ─▶ resolve.yml (réutilisable) : manifest → déployer ? où ? quel tag ?
+           │     (environments.<env>.branch, deploy: auto|manual)
+           ├▶ build des images (repo de l'app, tag = SHA court), si demandé
+           └▶ deploy.yml (réutilisable, ce repo)
+                  1. resolve      : environnement reçu
                   2. checkout     : repo de l'app + ce repo
                   3. validate     : schéma + cohérence
                   4. apps/project : projet + environnements

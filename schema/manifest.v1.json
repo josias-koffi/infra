@@ -3,74 +3,182 @@
   "$id": "https://raw.githubusercontent.com/josias-koffi/infra/main/schema/manifest.v1.json",
   "title": "App deploy manifest (.deploy/manifest.yaml)",
   "type": "object",
-  "required": ["apiVersion", "name", "environments"],
+  "required": [
+    "apiVersion",
+    "name",
+    "environments"
+  ],
   "additionalProperties": false,
   "properties": {
-    "apiVersion": { "const": "deploy/v1" },
-    "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,30}$", "description": "Dokploy project name." },
-    "description": { "type": "string" },
-    "server": { "type": "string", "default": "vps20", "description": "Key of platform/nodes.yaml." },
-    "mode": { "enum": ["services", "compose"], "default": "services" },
-    "dns": { "enum": ["cloudflare", "external"], "default": "cloudflare" },
-    "secrets": { "$ref": "#/$defs/names", "description": "Required secrets, read from the GitHub environment." },
-    "optionalSecrets": { "$ref": "#/$defs/names", "description": "Secrets defaulting to an empty string." },
-    "vars": { "$ref": "#/$defs/vars" },
+    "apiVersion": {
+      "const": "deploy/v1"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,30}$",
+      "description": "Dokploy project name."
+    },
+    "description": {
+      "type": "string"
+    },
+    "server": {
+      "type": "string",
+      "default": "vps20",
+      "description": "Key of platform/nodes.yaml."
+    },
+    "mode": {
+      "enum": [
+        "services",
+        "compose"
+      ],
+      "default": "services"
+    },
+    "dns": {
+      "enum": [
+        "cloudflare",
+        "external"
+      ],
+      "default": "cloudflare"
+    },
+    "secrets": {
+      "$ref": "#/$defs/names",
+      "description": "Required secrets, read from the GitHub environment."
+    },
+    "optionalSecrets": {
+      "$ref": "#/$defs/names",
+      "description": "Secrets defaulting to an empty string."
+    },
+    "vars": {
+      "$ref": "#/$defs/vars"
+    },
     "compose": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["file"],
+      "required": [
+        "file"
+      ],
       "properties": {
-        "file": { "type": "string" },
-        "name": { "type": "string" },
+        "file": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
         "routes": {
           "type": "object",
           "additionalProperties": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["port"],
+            "required": [
+              "port"
+            ],
             "properties": {
-              "service": { "type": "string" },
-              "port": { "type": "integer" },
-              "domain": { "type": "string" },
-              "path": { "type": "string" }
+              "service": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer"
+              },
+              "domain": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
             }
           }
         },
-        "resources": { "type": "object", "additionalProperties": { "$ref": "#/$defs/resources" } },
+        "resources": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/resources"
+          }
+        },
         "backupVolumes": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["volume", "service"],
+            "required": [
+              "volume",
+              "service"
+            ],
             "additionalProperties": false,
             "properties": {
-              "volume": { "type": "string" },
-              "service": { "type": "string" },
-              "name": { "type": "string" },
-              "prefix": { "type": "object", "additionalProperties": { "type": "string" } }
+              "volume": {
+                "type": "string"
+              },
+              "service": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "prefix": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
       }
     },
-    "apps": { "type": "object", "additionalProperties": { "$ref": "#/$defs/component" } },
-    "workers": { "type": "object", "additionalProperties": { "$ref": "#/$defs/component" } },
+    "apps": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/component"
+      }
+    },
+    "workers": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/component"
+      }
+    },
     "databases": {
       "type": "object",
       "additionalProperties": {
         "type": "object",
-        "required": ["type", "user"],
+        "required": [
+          "type",
+          "user"
+        ],
         "additionalProperties": false,
         "properties": {
-          "type": { "enum": ["postgres", "mysql", "mariadb", "mongo"] },
-          "version": { "type": "string" },
-          "database": { "type": "string" },
-          "user": { "type": "string" },
-          "service": { "type": "string", "description": "mode compose: the compose service that runs it." },
-          "passwordSecret": { "type": "string" },
-          "rootPasswordSecret": { "type": "string" },
-          "envPrefix": { "type": "string" },
-          "resources": { "$ref": "#/$defs/resources" }
+          "type": {
+            "enum": [
+              "postgres",
+              "mysql",
+              "mariadb",
+              "mongo"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "database": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string",
+            "description": "mode compose: the compose service that runs it."
+          },
+          "passwordSecret": {
+            "type": "string"
+          },
+          "rootPasswordSecret": {
+            "type": "string"
+          },
+          "envPrefix": {
+            "type": "string"
+          },
+          "resources": {
+            "$ref": "#/$defs/resources"
+          }
         }
       }
     },
@@ -78,14 +186,26 @@
       "type": "object",
       "additionalProperties": {
         "type": "object",
-        "required": ["type"],
+        "required": [
+          "type"
+        ],
         "additionalProperties": false,
         "properties": {
-          "type": { "const": "redis" },
-          "version": { "type": "string" },
-          "passwordSecret": { "type": "string" },
-          "envPrefix": { "type": "string" },
-          "resources": { "$ref": "#/$defs/resources" }
+          "type": {
+            "const": "redis"
+          },
+          "version": {
+            "type": "string"
+          },
+          "passwordSecret": {
+            "type": "string"
+          },
+          "envPrefix": {
+            "type": "string"
+          },
+          "resources": {
+            "$ref": "#/$defs/resources"
+          }
         }
       }
     },
@@ -93,78 +213,250 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "enabled": { "type": "boolean", "default": true },
-        "reason": { "type": "string", "minLength": 10 },
-        "cron": { "type": "string" },
-        "volumeCron": { "type": "string" },
-        "keep": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 1 } },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 10
+        },
+        "cron": {
+          "type": "string"
+        },
+        "volumeCron": {
+          "type": "string"
+        },
+        "keep": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
         "prefix": {
           "type": "object",
           "properties": {
-            "db": { "type": "object", "additionalProperties": { "type": "string" } },
-            "volumes": { "type": "object", "additionalProperties": { "type": "string" } }
+            "db": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "volumes": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
           }
         }
       },
-      "if": { "properties": { "enabled": { "const": false } }, "required": ["enabled"] },
-      "then": { "required": ["reason"] }
+      "if": {
+        "properties": {
+          "enabled": {
+            "const": false
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "then": {
+        "required": [
+          "reason"
+        ]
+      }
     },
     "environments": {
       "type": "object",
       "minProperties": 1,
-      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*$" },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "branch": { "type": "string" },
-          "volumePrefix": { "type": "string" },
-          "externalVolumes": { "type": "boolean" },
-          "domains": { "type": "object", "additionalProperties": { "type": "string", "format": "hostname" } },
-          "vars": { "$ref": "#/$defs/vars" },
-          "overrides": { "type": "object" }
+          "branch": {
+            "type": "string",
+            "description": "Branch that deploys this environment (a manual run must start from it)."
+          },
+          "volumePrefix": {
+            "type": "string"
+          },
+          "externalVolumes": {
+            "type": "boolean"
+          },
+          "domains": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "format": "hostname"
+            }
+          },
+          "vars": {
+            "$ref": "#/$defs/vars"
+          },
+          "overrides": {
+            "type": "object"
+          },
+          "deploy": {
+            "enum": [
+              "auto",
+              "manual"
+            ],
+            "default": "auto",
+            "description": "auto: a push on `branch` deploys. manual: only a manual run (workflow_dispatch) deploys."
+          }
         }
       }
     }
   },
   "allOf": [
     {
-      "if": { "properties": { "mode": { "const": "compose" } }, "required": ["mode"] },
-      "then": { "required": ["compose"], "not": { "anyOf": [{ "required": ["apps"] }, { "required": ["workers"] }, { "required": ["caches"] }] } }
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "compose"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      "then": {
+        "required": [
+          "compose"
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "apps"
+              ]
+            },
+            {
+              "required": [
+                "workers"
+              ]
+            },
+            {
+              "required": [
+                "caches"
+              ]
+            }
+          ]
+        }
+      }
     }
   ],
   "$defs": {
-    "names": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }, "uniqueItems": true },
-    "vars": { "type": "object", "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]*$" }, "additionalProperties": { "type": ["string", "number", "boolean"] } },
+    "names": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9_]*$"
+      },
+      "uniqueItems": true
+    },
+    "vars": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Z][A-Z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      }
+    },
     "resources": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "cpus": { "type": ["number", "string"] },
-        "memory": { "type": "string", "pattern": "^[0-9.]+[kmgKMG]?[bB]?$" }
+        "cpus": {
+          "type": [
+            "number",
+            "string"
+          ]
+        },
+        "memory": {
+          "type": "string",
+          "pattern": "^[0-9.]+[kmgKMG]?[bB]?$"
+        }
       }
     },
     "component": {
       "type": "object",
-      "required": ["image"],
+      "required": [
+        "image"
+      ],
       "additionalProperties": false,
       "properties": {
-        "image": { "type": "string" },
-        "tag": { "type": "string" },
-        "registry": { "type": "string" },
-        "port": { "type": "integer" },
-        "domain": { "type": "string" },
-        "domains": { "type": "array", "items": { "type": "string" } },
-        "path": { "type": "string" },
-        "healthcheck": { "type": "string" },
-        "command": { "type": "string" },
-        "args": { "type": "array", "items": { "type": "string" } },
-        "replicas": { "type": "integer", "minimum": 0 },
-        "uses": { "type": "array", "items": { "type": "string" } },
-        "volumes": { "type": "object", "additionalProperties": { "type": "string" } },
-        "vars": { "$ref": "#/$defs/vars" },
-        "secrets": { "$ref": "#/$defs/names" },
-        "resources": { "$ref": "#/$defs/resources" }
+        "image": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "registry": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "domains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "path": {
+          "type": "string"
+        },
+        "healthcheck": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "volumes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "vars": {
+          "$ref": "#/$defs/vars"
+        },
+        "secrets": {
+          "$ref": "#/$defs/names"
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        }
       }
     }
   }
