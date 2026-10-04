@@ -71,7 +71,7 @@ locals {
   all_secrets = jsondecode(var.secrets_json)
   # `secrets` must exist in the GitHub environment; `optionalSecrets` default
   # to an empty string (features that stay off until their key is set).
-  missing_secrets = [for k in try(local.manifest.secrets, []) : k if !contains(keys(local.all_secrets), k)]
+  missing_secrets = nonsensitive([for k in try(local.manifest.secrets, []) : k if !contains(keys(local.all_secrets), k)])
   secrets = merge(
     { for k in try(local.manifest.optionalSecrets, []) : k => try(local.all_secrets[k], "") },
     { for k in try(local.manifest.secrets, []) : k => try(local.all_secrets[k], "") },
@@ -98,6 +98,8 @@ data "terraform_remote_state" "platform" {
 }
 
 data "terraform_remote_state" "project" {
+  # Skipped by a plan-only run on an app whose project was never applied.
+  count   = var.project_state_exists ? 1 : 0
   backend = "s3"
   config = {
     bucket                      = var.state_bucket
@@ -109,8 +111,6 @@ data "terraform_remote_state" "project" {
     skip_requesting_account_id  = true
     skip_s3_checksum            = true
   }
-  # A plan-only run on a new app happens before apps/project was ever applied.
-  defaults = { environment_ids = {} }
 }
 
 check "secrets_present" {
@@ -127,7 +127,7 @@ module "app" {
   environment    = var.environment
   # The placeholder only appears in a plan-only run before the first project
   # apply; a real deploy applies apps/project first.
-  environment_id = try(data.terraform_remote_state.project.outputs.environment_ids[var.environment], "(created by apps/project)")
+  environment_id = try(data.terraform_remote_state.project[0].outputs.environment_ids[var.environment], "(created by apps/project)")
   server_id      = local.node.server_id
 
   spec         = local.spec

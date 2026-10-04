@@ -41,3 +41,9 @@ variable "cf_zone_id" {
   description = "Cloudflare zone of koklo.dev."
   default     = ""
 }
+
+variable "project_state_exists" {
+  type        = bool
+  description = "False only in a plan-only run before apps/project was ever applied (set by scripts/deploy-app.sh)."
+  default     = true
+}

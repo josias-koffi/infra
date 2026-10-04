@@ -37,6 +37,10 @@ if [ "$ACTION" = apply ]; then
   tofu -chdir="$ROOT/apps/project" apply -input=false -auto-approve -var "manifest_path=${MANIFEST}"
 else
   tofu -chdir="$ROOT/apps/project" plan -input=false -var "manifest_path=${MANIFEST}"
+  # First plan of a new app: there is no project state for apps/env to read.
+  if [ -z "$(tofu -chdir="$ROOT/apps/project" state list 2>/dev/null)" ]; then
+    export TF_VAR_project_state_exists=false
+  fi
 fi
 echo "::endgroup::"
 
