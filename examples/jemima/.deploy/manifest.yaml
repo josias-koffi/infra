@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/josias-koffi/infra/main/schema/manifest.v1.json
-# Jemima portfolio — migration step 1: the existing compose stack, moved into
-# one Dokploy project with two environments. Step 2 splits it (mode: services).
+# Jemima portfolio — one Dokploy project `jemima`, environments production and
+# staging. Mode compose (the stack of infra/compose/dokploy-stack.yml), to be
+# split into one service per component later (mode: services).
 apiVersion: deploy/v1
 name: jemima
 server: vps20
@@ -39,13 +40,14 @@ vars:
 environments:
   production:
     branch: main
+    deploy: manual                   # un push sur main ne déploie jamais : Run workflow depuis main
     volumePrefix: jemima             # volumes jemima_* (live, verified 2026-10-04)
     externalVolumes: true
     domains: { site: jemima.koklo.dev, media: jemima-media.koklo.dev }
     vars:
       EMAIL_FROM: Portfolio Jémima <no-reply@koklo.dev>
   staging:
-    branch: develop
+    branch: develop                  # deploy: auto (défaut) : chaque push sur develop déploie
     volumePrefix: jemima-staging     # volumes jemima-staging_* (live)
     externalVolumes: true
     domains: { site: jemima-staging.koklo.dev, media: jemima-media-staging.koklo.dev }
