@@ -44,6 +44,8 @@ jobs:
 
   platform:
     needs: checks
+    # Off until the secrets are set (docs/migration.md §1): repo variable PLATFORM_ENABLED=true.
+    if: vars.PLATFORM_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: ${{ github.event_name == 'push' && 'production' || '' }}
     env:
