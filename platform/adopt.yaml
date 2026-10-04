@@ -1,0 +1,7 @@
+# Records of the live Dokploy taken over by platform/ (ids read from the
+# Dokploy database, 2026-10-04). Delete this file in a fork: a fresh install
+# creates everything.
+settings: d4a32e7d-397b-4bb1-bdfb-a8b780b4cb6e   # settings.getWebServerSettings
+destinations:
+  production: s-3ZcDeOs02ykeb4vYPIz
+  staging: js7-8ZojzBM2PHsdf_vqT

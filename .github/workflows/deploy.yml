@@ -26,8 +26,12 @@ on:
         description: Path of the manifest in the app repo
         type: string
         default: .deploy/manifest.yaml
+      infra_repository:
+        description: Repository of the platform (change the default in a fork)
+        type: string
+        default: josias-koffi/infra
       infra_ref:
-        description: Ref of josias-koffi/infra to deploy with
+        description: Ref of the platform repository to deploy with
         type: string
         default: main
 
@@ -68,7 +72,7 @@ jobs:
         with: { path: app }
       - uses: actions/checkout@v4
         with:
-          repository: josias-koffi/infra
+          repository: ${{ inputs.infra_repository }}
           ref: ${{ inputs.infra_ref }}
           path: infra
       - uses: opentofu/setup-opentofu@v1
@@ -76,7 +80,9 @@ jobs:
       - run: pip install --quiet jsonschema pyyaml
       - name: Deploy ${{ needs.resolve.outputs.environment }} @ ${{ needs.resolve.outputs.image_tag }}
         env:
+          DOKPLOY_URL: ${{ vars.DOKPLOY_URL }}
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
           AWS_ENDPOINT_URL_S3: ${{ secrets.R2_ENDPOINT }}
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}

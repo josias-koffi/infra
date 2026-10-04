@@ -5,7 +5,8 @@
 #   scripts/deploy-app.sh <manifest> <environment> <image_tag> [plan|apply]
 #
 # Environment:
-#   DOKPLOY_API_KEY                                   Dokploy API key
+#   DOKPLOY_URL, DOKPLOY_API_KEY                      Dokploy panel and API key
+#   TF_STATE_BUCKET                                   R2 bucket of the states
 #   AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY   R2 state backend
 #   CLOUDFLARE_API_TOKEN, CF_ZONE_ID                  DNS (manifests with dns: cloudflare)
 #   SECRETS_JSON                                      JSON object of secret values (toJSON(secrets))
@@ -16,6 +17,8 @@ ENVIRONMENT=$2
 IMAGE_TAG=$3
 ACTION=${4:-apply}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+: "${DOKPLOY_URL:?DOKPLOY_URL is required}" "${TF_STATE_BUCKET:?TF_STATE_BUCKET is required}"
+export TF_VAR_dokploy_endpoint="$DOKPLOY_URL" TF_VAR_state_bucket="$TF_STATE_BUCKET"
 
 python3 "$ROOT/scripts/validate-manifest.py" "$MANIFEST"
 
@@ -29,7 +32,7 @@ PY
 
 echo "::group::${APP} — project (apps/${APP}/project.tfstate)"
 tofu -chdir="$ROOT/apps/project" init -input=false -reconfigure \
-  -backend-config="key=apps/${APP}/project.tfstate" >/dev/null
+  -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="key=apps/${APP}/project.tfstate" >/dev/null
 if [ "$ACTION" = apply ]; then
   tofu -chdir="$ROOT/apps/project" apply -input=false -auto-approve -var "manifest_path=${MANIFEST}"
 else
@@ -41,7 +44,7 @@ echo "::group::${APP} — ${ENVIRONMENT} (apps/${APP}/${ENVIRONMENT}.tfstate)"
 export TF_VAR_secrets_json="${SECRETS_JSON:-{\}}"
 export TF_VAR_cf_zone_id="${CF_ZONE_ID:-}"
 tofu -chdir="$ROOT/apps/env" init -input=false -reconfigure \
-  -backend-config="key=apps/${APP}/${ENVIRONMENT}.tfstate" >/dev/null
+  -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="key=apps/${APP}/${ENVIRONMENT}.tfstate" >/dev/null
 # -detailed-exitcode: 0 = no change, 1 = error, 2 = changes to apply.
 set +e
 tofu -chdir="$ROOT/apps/env" plan -input=false -detailed-exitcode -out=tfplan \

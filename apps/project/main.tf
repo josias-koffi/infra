@@ -19,7 +19,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket = "koklo-tofu-state"
+    # bucket: -backend-config="bucket=$TF_STATE_BUCKET" (see Makefile)
     region = "auto"
 
     use_path_style              = true
@@ -36,8 +36,8 @@ provider "dokploy" {
 }
 
 variable "dokploy_endpoint" {
-  type    = string
-  default = "https://dokploy.ops.koklo.dev"
+  type        = string
+  description = "URL of the Dokploy panel (DOKPLOY_URL)."
 }
 
 variable "manifest_path" {
@@ -55,7 +55,7 @@ locals {
 
   # One-shot adoption of what already runs (apps/adopt/<name>.yaml).
   adopt_file = "${path.module}/../adopt/${local.app}.yaml"
-  adopt      = fileexists(local.adopt_file) ? yamldecode(file(local.adopt_file)) : {}
+  adopt      = yamldecode(fileexists(local.adopt_file) ? file(local.adopt_file) : "{}")
 }
 
 resource "dokploy_project" "this" {

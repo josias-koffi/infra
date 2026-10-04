@@ -1,4 +1,6 @@
-# Migration to the PaaS (runbook)
+# Case study — migrating VPS20 to the platform (runbook)
+
+> Journal réel de la reprise d’un Dokploy en production (en anglais). Pour la méthode générale, voir [Reprendre un Dokploy existant](../getting-started/existing-dokploy.md).
 
 Starting point (audit 2026-10-04, read-only): Dokploy v0.30.6 on VPS20 with
 four compose stacks managed from the app repos, plus `koklo-front` and

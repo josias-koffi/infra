@@ -1,7 +1,6 @@
 variable "dokploy_endpoint" {
   type        = string
-  description = "Base URL of the Dokploy panel."
-  default     = "https://dokploy.ops.koklo.dev"
+  description = "URL of the Dokploy panel (DOKPLOY_URL)."
 }
 
 variable "enable_docker_cleanup" {
@@ -27,11 +26,7 @@ variable "r2_endpoint" {
 
 variable "r2_backup_buckets" {
   type        = map(string)
-  description = "Backup bucket per environment."
-  default = {
-    production = "koklo-db-backups"
-    staging    = "koklo-db-backups-staging"
-  }
+  description = "Backup bucket per environment: { production = \"…\", staging = \"…\" } (R2_BACKUP_BUCKET_PROD / _STAGING)."
 }
 
 variable "r2_backup_credentials" {

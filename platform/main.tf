@@ -19,10 +19,10 @@ terraform {
     }
   }
 
-  # Same R2 bucket as every other Koklo state. Endpoint and credentials come
-  # from AWS_ENDPOINT_URL_S3 / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY.
+  # Bucket given at init (TF_STATE_BUCKET); endpoint and credentials from
+  # AWS_ENDPOINT_URL_S3 / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY.
   backend "s3" {
-    bucket = "koklo-tofu-state"
+    # bucket: -backend-config="bucket=$TF_STATE_BUCKET" (see Makefile)
     key    = "platform/dokploy.tfstate"
     region = "auto"
 

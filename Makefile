@@ -8,7 +8,10 @@ endif
 export AWS_ENDPOINT_URL_S3=$(R2_ENDPOINT)
 export AWS_ACCESS_KEY_ID=$(R2_ACCESS_KEY_ID)
 export AWS_SECRET_ACCESS_KEY=$(R2_SECRET_ACCESS_KEY)
+export TF_VAR_dokploy_endpoint=$(DOKPLOY_URL)
+export TF_VAR_state_bucket=$(TF_STATE_BUCKET)
 export TF_VAR_r2_endpoint=$(R2_ENDPOINT)
+export TF_VAR_r2_backup_buckets={"production":"$(R2_BACKUP_BUCKET_PROD)","staging":"$(R2_BACKUP_BUCKET_STAGING)"}
 export TF_VAR_r2_backup_credentials={"production":{"access_key":"$(R2_BACKUP_PROD_ACCESS_KEY_ID)","secret_access_key":"$(R2_BACKUP_PROD_SECRET_ACCESS_KEY)"},"staging":{"access_key":"$(R2_BACKUP_STAGING_ACCESS_KEY_ID)","secret_access_key":"$(R2_BACKUP_STAGING_SECRET_ACCESS_KEY)"}}
 export TF_VAR_ghcr_username=$(GHCR_USERNAME)
 export TF_VAR_ghcr_token=$(GHCR_TOKEN)
@@ -33,10 +36,10 @@ node-key: ## Generate the key pair the manager uses for remote nodes (prints .en
 	  echo "NODE_SSH_PRIVATE_KEY=\"$$(awk 'BEGIN{ORS="\\n"}1' $$tmp/k)\"" && rm -rf $$tmp
 
 platform-plan: ## Plan the Dokploy instance (settings, backup destinations, nodes)
-	@tofu -chdir=platform init -input=false >/dev/null && tofu -chdir=platform plan
+	@tofu -chdir=platform init -input=false -reconfigure -backend-config="bucket=$(TF_STATE_BUCKET)" >/dev/null && tofu -chdir=platform plan
 
 platform-apply: ## Apply the Dokploy instance configuration
-	@tofu -chdir=platform init -input=false >/dev/null && tofu -chdir=platform apply
+	@tofu -chdir=platform init -input=false -reconfigure -backend-config="bucket=$(TF_STATE_BUCKET)" >/dev/null && tofu -chdir=platform apply
 
 app-plan: ## Plan one env of an app. MANIFEST=… ENV=staging [TAG=…]
 	@test -n "$(MANIFEST)" -a -n "$(ENV)" || (echo "MANIFEST= and ENV= are required" && exit 1)

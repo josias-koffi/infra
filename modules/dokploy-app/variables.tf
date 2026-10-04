@@ -61,7 +61,7 @@ variable "registry_ids" {
 variable "dokploy_endpoint" {
   type        = string
   description = "Dokploy URL, for the API calls the provider does not model (redeploy). DOKPLOY_API_KEY comes from the environment."
-  default     = "https://dokploy.ops.koklo.dev"
+  default     = ""
 }
 
 variable "redeploy_after_mounts" {

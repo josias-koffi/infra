@@ -1,18 +1,19 @@
-# Adoption of what already runs on VPS20 (ids read from the Dokploy database on
-# 2026-10-04). The first plan must show these imports and NO replacement.
-# Keep the blocks: they are no-ops once the resources are in the state.
-
-import {
-  to = dokploy_destination.backups["production"]
-  id = "s-3ZcDeOs02ykeb4vYPIz"
+# Adoption of an EXISTING Dokploy (docs/getting-started/existing-dokploy.md).
+# platform/adopt.yaml lists the ids of the records to take over; a fresh install
+# has no such file and these blocks do nothing. Keep the file after adoption:
+# the imports are no-ops once the resources are in the state.
+locals {
+  adopt = yamldecode(fileexists("${path.module}/adopt.yaml") ? file("${path.module}/adopt.yaml") : "{}")
 }
 
 import {
-  to = dokploy_destination.backups["staging"]
-  id = "js7-8ZojzBM2PHsdf_vqT"
+  for_each = try(local.adopt.destinations, {})
+  to       = dokploy_destination.backups[each.key]
+  id       = each.value
 }
 
 import {
-  to = dokploy_web_server_settings.this
-  id = "d4a32e7d-397b-4bb1-bdfb-a8b780b4cb6e"
+  for_each = { for k, v in { this = try(local.adopt.settings, null) } : k => v if v != null }
+  to       = dokploy_web_server_settings.this
+  id       = each.value
 }

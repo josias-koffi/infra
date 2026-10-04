@@ -20,7 +20,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket = "koklo-tofu-state"
+    # bucket: -backend-config="bucket=$TF_STATE_BUCKET" (see Makefile)
     region = "auto"
 
     use_path_style              = true
@@ -86,7 +86,7 @@ locals {
 data "terraform_remote_state" "platform" {
   backend = "s3"
   config = {
-    bucket                      = "koklo-tofu-state"
+    bucket                      = var.state_bucket
     key                         = "platform/dokploy.tfstate"
     region                      = "auto"
     use_path_style              = true
@@ -100,7 +100,7 @@ data "terraform_remote_state" "platform" {
 data "terraform_remote_state" "project" {
   backend = "s3"
   config = {
-    bucket                      = "koklo-tofu-state"
+    bucket                      = var.state_bucket
     key                         = "apps/${local.app}/project.tfstate"
     region                      = "auto"
     use_path_style              = true

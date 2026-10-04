@@ -1,68 +1,107 @@
 # infra
 
-My self-hosted platform, built on [Dokploy](https://dokploy.com) and driven
-entirely as code: the servers, the panel, and every app that runs on it.
+**Ma plateforme d'hébergement auto-hébergée**, construite sur
+[Dokploy](https://dokploy.com) et entièrement décrite en code : les serveurs,
+le panel et chaque app qui y tourne.
 
-An app describes itself in one file, `.deploy/manifest.yaml`, next to its own
-code. Pushing to `develop` deploys staging, and merging to `main` deploys
+Une app se décrit dans **un seul fichier**, placé à côté de son code. Un push
+sur `develop` la déploie en staging ; un merge sur `main` la déploie en
 production.
 
 ```yaml
+# .deploy/manifest.yaml (dans le repo de l'app)
 apiVersion: deploy/v1
-name: sample
+name: shop
 apps:
-  api: { image: ghcr.io/josias-koffi/sample-api, port: 8080, domain: api, uses: [db], resources: { memory: 1g } }
+  api: { image: ghcr.io/me/shop-api, port: 8080, domain: api, uses: [db], resources: { memory: 1g } }
 databases:
-  db: { type: postgres, database: sample, user: sample }   # backed up daily, by default
+  db: { type: postgres, database: shop, user: shop }          # sauvegardée chaque jour, par défaut
 environments:
-  production: { branch: main,    domains: { api: api.example.com } }
-  staging:    { branch: develop, domains: { api: api-staging.example.com } }
+  production: { branch: main,    domains: { api: api.shop.example } }
+  staging:    { branch: develop, domains: { api: api-staging.shop.example } }
 ```
 
-## What it does
+Ce fichier donne :
+- un projet Dokploy `shop`, avec deux environnements ;
+- un service par composant (l'API et Postgres), avec ses limites ;
+- le domaine en HTTPS et l'enregistrement DNS ;
+- la sauvegarde quotidienne de la base vers R2 ;
+- un smoke test après chaque déploiement.
 
-- **One project per app, with one environment per stage.** Every component
-  (app, worker, database, cache) is its own Dokploy service, with its own
-  resource limits, logs and redeploys.
-- **Data protected by default:**
-  - every database and volume is backed up daily to Cloudflare R2, and so is
-    the panel itself;
-  - a deploy refuses to destroy anything that holds state;
-  - removing an environment goes through a protected workflow that archives
-    the volumes first.
-- **Automatic purge:** unused images and build cache are pruned on every node,
-  registry versions are rotated, and the journal is capped.
-- **Multi-server:** adding a server is one Ansible run plus one line in
-  `platform/nodes.yaml`. An app then picks it with `server:`.
-- **Reproducible:** a lost server is rebuilt from this repo and the R2 backups
-  (`docs/restore.md`).
+## Ce que ça apporte
 
-## Layout
+- **Un projet par app, un environnement par étape.** Chaque composant (app,
+  worker, base, cache) est un service Dokploy à part, avec ses limites CPU et
+  mémoire, ses logs et ses redéploiements.
+- **Les données protégées par défaut :**
+  - chaque base et chaque volume est sauvegardé tous les jours vers
+    Cloudflare R2, et Dokploy lui-même aussi ;
+  - un déploiement refuse de supprimer ce qui contient des données ;
+  - supprimer un environnement passe par un workflow protégé, qui archive les
+    volumes d'abord.
+- **Une purge automatique :** images et cache de build sur chaque serveur,
+  rotation des images du registre, journal système plafonné.
+- **Plusieurs serveurs :** ajouter une machine, c'est un playbook et une ligne
+  dans `platform/nodes.yaml`. Une app choisit ensuite son serveur avec
+  `server:`.
+- **Reproductible :** un serveur perdu se reconstruit depuis ce repo et les
+  sauvegardes R2.
+- **Adoptable :** un Dokploy déjà en production se reprend par import, sans
+  rien recréer.
 
-| Path | Role |
+## Démarrer
+
+| Tu as… | Lis |
 |---|---|
-| `ansible/` | server provisioning: hardening, Docker, Dokploy (pinned, never reinstalled over a live panel), housekeeping |
-| `platform/` | the Dokploy instance: settings, backup destinations, self-backup, registry, remote servers |
-| `apps/project`, `apps/env` | OpenTofu roots run for each app: the project with its environments, then one environment |
-| `modules/dokploy-app` | manifest → Dokploy applications, databases, caches, domains, mounts, backups (tested with a mocked provider) |
-| `schema/`, `scripts/validate-manifest.py` | the manifest contract |
-| `.github/workflows/deploy.yml` | the reusable deploy workflow that app repos call |
-| `templates/app-deploy.yml` | the caller workflow to copy into an app |
-| `examples/` | reference manifests |
+| un serveur vierge | [Prérequis](docs/getting-started/prerequisites.md), puis [Installation neuve](docs/getting-started/fresh-install.md) |
+| un Dokploy qui tourne déjà | [Reprendre un Dokploy existant](docs/getting-started/existing-dokploy.md) |
+| une plateforme en place, et une app à déployer | [Déployer une app](docs/guides/deploy-an-app.md) |
 
-## Use
+En bref :
 
 ```bash
-cp .env.example .env                          # fill in the Dokploy key and R2 tokens
+gh repo fork josias-koffi/infra --clone && cd infra
+cp .env.example .env                                   # URL Dokploy, clé API, buckets et tokens R2
 cp ansible/inventory/hosts.example ansible/inventory/hosts
-make test                                     # schema, module tests, validation
-make setup-manager CHECK=1                    # dry run against the manager
-make platform-plan
-make app-plan MANIFEST=../my-app/.deploy/manifest.yaml ENV=staging
+make setup-manager                                     # Docker + Dokploy (version figée) + purge
+make platform-apply                                    # destinations de sauvegarde, auto-sauvegarde, registre
+scripts/set-secrets.sh                                 # la même config pour la CI
 ```
 
-Documentation: [platform](docs/platform.md) · [add a server](docs/add-node.md) ·
-[purge](docs/purge.md) · [restore](docs/restore.md) ·
-[migration of the existing services](docs/migration.md)
+## Documentation
 
-Stack: Dokploy · Docker Swarm · Traefik · OpenTofu · Ansible · GitHub Actions · Cloudflare (DNS, R2)
+L'index complet est dans [`docs/`](docs/README.md).
+
+- **Guides :** [déployer une app](docs/guides/deploy-an-app.md) ·
+  [ajouter un serveur](docs/guides/add-a-server.md) ·
+  [sauvegardes et restauration](docs/guides/backups-and-restore.md) ·
+  [purge](docs/guides/purge.md)
+- **Référence :** [manifest](docs/reference/manifest.md) ·
+  [configuration](docs/reference/configuration.md) ·
+  [architecture](docs/reference/architecture.md) ·
+  [comportements Dokploy vérifiés](docs/reference/dokploy-behaviour.md)
+- **Retour d'expérience :** [migration d'un VPS en production](docs/case-studies/vps20-migration.md)
+
+## Organisation du repo
+
+```
+ansible/                 serveurs : sécurisation, Docker, Dokploy, purge
+platform/                l'instance Dokploy : réglages, sauvegardes, registre, serveurs
+apps/project, apps/env   roots OpenTofu lancés pour chaque app (projet, puis un environnement)
+modules/dokploy-app      manifest → services, domaines, montages, sauvegardes (tests avec provider simulé)
+schema/, scripts/        contrat du manifest, validateur, pipeline de déploiement
+.github/workflows/       deploy.yml (réutilisable par les apps), platform, purge-env, housekeeping
+templates/               workflow à copier dans le repo d'une app
+examples/                manifests de référence
+docs/                    documentation
+```
+
+## Stack
+
+Dokploy · Docker Swarm · Traefik · OpenTofu (provider
+[`vanillauys/dokploy`](https://registry.terraform.io/providers/vanillauys/dokploy))
+· Ansible · GitHub Actions · Cloudflare (DNS, R2)
+
+Testé avec Dokploy v0.30.6 sur Ubuntu 24.04. `make test` valide les
+manifests, lance les tests du module (provider simulé) et valide tous les
+roots ; la CI le rejoue sur chaque PR.

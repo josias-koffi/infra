@@ -6,7 +6,7 @@
 #   staging    = compose `jobspark-staging` appName jobspark-staging-rdzqb4  volumes cvspark-staging_*
 #
 # Before the first apply, drop these resources from the cvforge states
-# (tofu state rm, NO destroy) — see docs/migration.md.
+# (tofu state rm, NO destroy) — see docs/case-studies/vps20-migration.md.
 project: TxTRWFHlsry6EfTUfij-q
 environments:
   production:

@@ -1,6 +1,11 @@
 variable "dokploy_endpoint" {
-  type    = string
-  default = "https://dokploy.ops.koklo.dev"
+  type        = string
+  description = "URL of the Dokploy panel (DOKPLOY_URL)."
+}
+
+variable "state_bucket" {
+  type        = string
+  description = "R2 bucket holding the OpenTofu states (TF_STATE_BUCKET)."
 }
 
 variable "manifest_path" {

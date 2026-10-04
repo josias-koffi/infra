@@ -1,7 +1,7 @@
 # Servers of the Koklo PaaS. An app picks one with `server:` in its manifest.
 #
 # role: manager -> the Dokploy host (no dokploy_server record, services run locally)
-# role: remote  -> a server Dokploy deploys to over SSH (see docs/add-node.md)
+# role: remote  -> a server Dokploy deploys to over SSH (see docs/guides/add-a-server.md)
 nodes:
   vps20:
     role: manager

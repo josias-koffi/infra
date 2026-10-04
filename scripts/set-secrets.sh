@@ -4,24 +4,26 @@
 # prints a value. Empty values are skipped; the platform job is enabled only
 # once every required secret is set.
 #
-#   scripts/set-secrets.sh [owner/repo]     (default: josias-koffi/infra)
+#   scripts/set-secrets.sh [owner/repo]     (default: the repo of the current checkout)
 set -euo pipefail
 
-REPO=${1:-josias-koffi/infra}
+REPO=${1:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}
 ENV_FILE="$(cd "$(dirname "$0")/.." && pwd)/.env"
 [ -f "$ENV_FILE" ] || { echo "No .env — cp .env.example .env and fill it."; exit 1; }
 
 # Reads KEY=value without sourcing the file.
 get() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -1 | sed 's/^"\(.*\)"$/\1/'; }
 
-REQUIRED=(DOKPLOY_API_KEY R2_ENDPOINT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY
+REQUIRED=(DOKPLOY_URL TF_STATE_BUCKET R2_BACKUP_BUCKET_PROD R2_BACKUP_BUCKET_STAGING DOKPLOY_API_KEY R2_ENDPOINT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY
   R2_BACKUP_PROD_ACCESS_KEY_ID R2_BACKUP_PROD_SECRET_ACCESS_KEY
   R2_BACKUP_STAGING_ACCESS_KEY_ID R2_BACKUP_STAGING_SECRET_ACCESS_KEY)
 OPTIONAL=(GHCR_TOKEN NODE_SSH_PRIVATE_KEY)
-VARIABLES=(GHCR_USERNAME NODE_SSH_PUBLIC_KEY)
+VARIABLES=(DOKPLOY_URL TF_STATE_BUCKET R2_BACKUP_BUCKET_PROD R2_BACKUP_BUCKET_STAGING GHCR_USERNAME NODE_SSH_PUBLIC_KEY)
 
 missing=()
+is_var() { [[ " ${VARIABLES[*]} " == *" $1 "* ]]; }
 for k in "${REQUIRED[@]}" "${OPTIONAL[@]}"; do
+  is_var "$k" && { [ -n "$(get "$k")" ] || missing+=("$k"); continue; }
   v=$(get "$k")
   if [ -n "$v" ]; then
     printf '%s' "$v" | gh secret set "$k" -R "$REPO" && echo "✓ secret   $k"

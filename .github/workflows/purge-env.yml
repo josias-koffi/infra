@@ -35,6 +35,8 @@ jobs:
     environment: purge          # protected: required reviewer
     env:
       DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+      TF_VAR_dokploy_endpoint: ${{ vars.DOKPLOY_URL }}
+      TF_VAR_state_bucket: ${{ vars.TF_STATE_BUCKET }}
       AWS_ENDPOINT_URL_S3: ${{ secrets.R2_ENDPOINT }}
       AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -48,7 +50,7 @@ jobs:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
           path: app
-          token: ${{ secrets.APP_REPOS_READ_TOKEN }}
+          token: ${{ secrets.APP_REPOS_READ_TOKEN || github.token }}
       - uses: opentofu/setup-opentofu@v1
         with: { tofu_version: 1.12.3, tofu_wrapper: false }
       - run: pip install --quiet pyyaml
@@ -72,7 +74,7 @@ jobs:
       - name: Plan destroy
         working-directory: infra/apps/env
         run: |
-          tofu init -input=false -backend-config="key=apps/${{ steps.app.outputs.name }}/${{ inputs.environment }}.tfstate"
+          tofu init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="key=apps/${{ steps.app.outputs.name }}/${{ inputs.environment }}.tfstate"
           tofu plan -destroy -input=false -out=destroy.tfplan \
             -var manifest_path="$GITHUB_WORKSPACE/app/.deploy/manifest.yaml" \
             -var environment="${{ inputs.environment }}" -var image_tag=purge
@@ -86,7 +88,7 @@ jobs:
           PREFIX: ${{ steps.app.outputs.volume_prefix }}
           SVC_PREFIX: ${{ steps.app.outputs.name }}-${{ inputs.environment }}-
         with:
-          host: ${{ secrets.VPS20_IP }}
+          host: ${{ secrets.MANAGER_IP }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           envs: PREFIX,SVC_PREFIX
@@ -108,7 +110,7 @@ jobs:
         env:
           PREFIX: ${{ steps.app.outputs.volume_prefix }}
         with:
-          host: ${{ secrets.VPS20_IP }}
+          host: ${{ secrets.MANAGER_IP }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           envs: PREFIX

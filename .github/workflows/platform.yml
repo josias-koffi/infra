@@ -44,12 +44,14 @@ jobs:
 
   platform:
     needs: checks
-    # Off until the secrets are set (docs/migration.md §1): repo variable PLATFORM_ENABLED=true.
+    # Off until the secrets are set (docs/getting-started/fresh-install.md, step 8): repo variable PLATFORM_ENABLED=true.
     if: vars.PLATFORM_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: ${{ github.event_name == 'push' && 'production' || '' }}
     env:
       DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+      TF_VAR_dokploy_endpoint: ${{ vars.DOKPLOY_URL }}
+      TF_VAR_r2_backup_buckets: '{"production":"${{ vars.R2_BACKUP_BUCKET_PROD }}","staging":"${{ vars.R2_BACKUP_BUCKET_STAGING }}"}'
       AWS_ENDPOINT_URL_S3: ${{ secrets.R2_ENDPOINT }}
       AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -65,7 +67,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: opentofu/setup-opentofu@v1
         with: { tofu_version: "${{ env.TOFU_VERSION }}", tofu_wrapper: false }
-      - run: tofu -chdir=platform init -input=false
+      - run: tofu -chdir=platform init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
       - name: Plan
         run: tofu -chdir=platform plan -input=false -out=tfplan
       - name: Apply

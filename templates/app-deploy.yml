@@ -1,11 +1,12 @@
 # Deploy workflow of an app repo — copy to .github/workflows/deploy.yml.
 # Everything (Dokploy project, environments, services, backups, DNS, smoke
-# tests) comes from .deploy/manifest.yaml through josias-koffi/infra.
+# tests) comes from .deploy/manifest.yaml. Guide: docs/guides/deploy-an-app.md
 #
-# Repo secrets : DOKPLOY_API_KEY, R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
-#                CF_API_TOKEN + CF_ZONE_ID (only with dns: cloudflare)
-# Env secrets  : the names listed in the manifest, in the GitHub environments
-#                `staging` and `production`.
+# Repo variables : DOKPLOY_URL, TF_STATE_BUCKET
+# Repo secrets   : DOKPLOY_API_KEY, R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
+#                  CF_API_TOKEN + CF_ZONE_ID (only with dns: cloudflare, the default)
+# Env secrets    : the names listed in the manifest, in the GitHub environments
+#                  `staging` and `production`.
 name: Deploy
 
 on:
@@ -17,7 +18,7 @@ on:
         type: choice
         options: [staging, production]
       image_tag:
-        description: Image tag — an older sha rolls back
+        description: Existing image tag to deploy — an older sha rolls back
         required: false
 
 permissions:
@@ -25,13 +26,31 @@ permissions:
   packages: write
 
 jobs:
-  # build:                       <- the app's own image build, pushing ghcr.io/<owner>/<image>:<short sha>
-  #   if: inputs.image_tag == ''
+  build:
+    if: inputs.image_tag == ''
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.t.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: t
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # One build-push step per image of the manifest.
+      - uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/CHANGE-ME:${{ steps.t.outputs.tag }}
 
   deploy:
-    # needs: build
+    needs: build
+    if: ${{ !failure() && !cancelled() }}
     uses: josias-koffi/infra/.github/workflows/deploy.yml@main
     with:
       environment: ${{ inputs.environment }}
-      image_tag: ${{ inputs.image_tag }}
+      image_tag: ${{ inputs.image_tag || needs.build.outputs.tag }}
     secrets: inherit
