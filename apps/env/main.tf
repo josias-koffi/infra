@@ -109,6 +109,8 @@ data "terraform_remote_state" "project" {
     skip_requesting_account_id  = true
     skip_s3_checksum            = true
   }
+  # A plan-only run on a new app happens before apps/project was ever applied.
+  defaults = { environment_ids = {} }
 }
 
 check "secrets_present" {
@@ -123,7 +125,9 @@ module "app" {
 
   app            = local.app
   environment    = var.environment
-  environment_id = data.terraform_remote_state.project.outputs.environment_ids[var.environment]
+  # The placeholder only appears in a plan-only run before the first project
+  # apply; a real deploy applies apps/project first.
+  environment_id = try(data.terraform_remote_state.project.outputs.environment_ids[var.environment], "(created by apps/project)")
   server_id      = local.node.server_id
 
   spec         = local.spec
