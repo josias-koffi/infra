@@ -1,0 +1,136 @@
+# Stack Jémima portfolio telle que Dokploy l'exécute (pattern cvforge).
+#
+# Géré par `dokploy_compose` dans ../dokploy/compose.tf, qui envoie ce fichier
+# inline. Les ${VARIABLES} viennent du bloc `env` de cette ressource. Ne jamais
+# modifier la copie déployée dans l'UI Dokploy : le prochain apply l'écrase.
+#
+# Piège dokploy-network : Dokploy met tous les stacks sur un réseau partagé et
+# y publie chaque nom de service comme alias. Staging et prod publient donc tous
+# deux `postgres` et `minio`. L'app n'utilise QUE les alias uniques
+# ${PROJECT}-postgres / ${PROJECT}-minio, jamais les noms nus.
+
+services:
+  app:
+    image: ghcr.io/josias-koffi/jemima-portfolio:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      APP_VERSION: ${APP_VERSION}
+      SITE_URL: https://${SITE_DOMAIN}
+      SITE_ENV: ${SITE_ENV}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${PROJECT}-postgres:5432/${POSTGRES_DB}
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET}
+      S3_ENDPOINT: http://${PROJECT}-minio:9000
+      S3_BUCKET: media
+      S3_REGION: us-east-1
+      S3_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      S3_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MEDIA_PUBLIC_URL: https://${MEDIA_DOMAIN}/media
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      EMAIL_FROM: ${EMAIL_FROM}
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - ${PROJECT}-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Médias. Exposé publiquement sur ${MEDIA_DOMAIN} (dokploy_domain, port 9000) :
+  # le bucket `media` est en lecture anonyme, l'écriture exige les clés.
+  # Les images MinIO ne sont plus publiées sur Docker Hub : quay.io, tag épinglé.
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - ${PROJECT}-minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # One-shot à chaque déploiement : crée le bucket (idempotent) et autorise la
+  # lecture anonyme des fichiers UNIQUEMENT (s3:GetObject) — pas de listing, qui
+  # révélerait les médias des projets encore en brouillon.
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_URL: http://${PROJECT}-minio:9000
+      POLICY: '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::media/*"]}]}'
+    entrypoint: >
+      sh -c 'mc alias set s3 "$$MINIO_URL" "$$MINIO_ACCESS_KEY" "$$MINIO_SECRET_KEY" &&
+             mc mb --ignore-existing s3/media &&
+             printf "%s" "$$POLICY" > /tmp/policy.json &&
+             mc anonymous set-json /tmp/policy.json s3/media'
+
+  # pg_dump quotidien dans le volume db_backups (7 jours, 4 semaines, 6 mois).
+  # ATTENTION : sauvegarde sur le VPS uniquement.
+  db_backup:
+    image: prodrigestivill/postgres-backup-local:16
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      POSTGRES_HOST: ${PROJECT}-postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_EXTRA_OPTS: "--schema=public --blobs"
+      SCHEDULE: "@daily"
+      BACKUP_KEEP_DAYS: "7"
+      BACKUP_KEEP_WEEKS: "4"
+      BACKUP_KEEP_MONTHS: "6"
+      HEALTHCHECK_PORT: "8080"
+    volumes:
+      - db_backups:/backups
+
+volumes:
+  postgres_data:
+    name: ${VOLUME_PREFIX}_postgres_data
+  minio_data:
+    name: ${VOLUME_PREFIX}_minio_data
+  db_backups:
+    name: ${VOLUME_PREFIX}_db_backups

@@ -54,6 +54,10 @@ run "jobspark_staging_compose" {
     error_message = "staging POSTGRES_HOST"
   }
   assert {
+    condition     = yamldecode(nonsensitive(output.rendered.compose_file)).volumes.api_data.name == "$${VOLUME_PREFIX}_api_data" && yamldecode(nonsensitive(output.rendered.compose_file)).volumes.api_data.external
+    error_message = "volume names keep the VOLUME_PREFIX interpolation and become external"
+  }
+  assert {
     condition     = output.rendered.backups.volumes.api_data.volume == "cvspark-staging_api_data"
     error_message = "staging volume backup"
   }
@@ -78,6 +82,16 @@ run "jemima_production_compose" {
   assert {
     condition     = output.rendered.domains.minio == "jemima-media.koklo.dev -> minio:9000"
     error_message = "media route"
+  }
+  assert {
+    condition = alltrue([
+      for v in values(yamldecode(nonsensitive(output.rendered.compose_file)).volumes) : v.external == true
+    ])
+    error_message = "every compose volume must be external"
+  }
+  assert {
+    condition     = length(yamldecode(nonsensitive(output.rendered.compose_file)).services) == 5
+    error_message = "the 5 services of the stack must survive the re-encoding"
   }
 }
 

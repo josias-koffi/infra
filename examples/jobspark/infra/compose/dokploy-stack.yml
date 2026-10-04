@@ -1,0 +1,32 @@
+# Test fixture — reduced shape of the Jobspark stack (the real file lives in its
+# private repo): same services, routes and named volumes.
+services:
+  web:
+    image: ghcr.io/josias-koffi/jobspark-web:${IMAGE_TAG}
+    environment: { API_URL: "https://${API_DOMAIN}" }
+  landing:
+    image: ghcr.io/josias-koffi/jobspark-landing:${IMAGE_TAG}
+  api:
+    image: ghcr.io/josias-koffi/jobspark-api:${IMAGE_TAG}
+    environment: { DATABASE_URL: "${DATABASE_URL}", REDIS_URL: "${REDIS_URL}" }
+    volumes: [api_data:/workspace/.data]
+  puppeteer:
+    image: ghcr.io/josias-koffi/jobspark-puppeteer:${IMAGE_TAG}
+  postgres:
+    image: postgres:16-alpine
+    environment: { POSTGRES_DB: "${POSTGRES_DB}", POSTGRES_USER: "${POSTGRES_USER}", POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}" }
+    volumes: [postgres_data:/var/lib/postgresql/data]
+  redis:
+    image: redis:7-alpine
+    volumes: [redis_data:/data]
+  minio:
+    image: minio/minio
+    command: server /data
+    volumes: [minio_data:/data]
+volumes:
+  api_data: { name: "${VOLUME_PREFIX}_api_data" }
+  postgres_data: { name: "${VOLUME_PREFIX}_postgres_data" }
+  redis_data: { name: "${VOLUME_PREFIX}_redis_data" }
+  minio_data: { name: "${VOLUME_PREFIX}_minio_data" }
+  pg_backups: { name: "${VOLUME_PREFIX}_pg_backups" }
+  r2_check: { name: "${VOLUME_PREFIX}_r2_check" }

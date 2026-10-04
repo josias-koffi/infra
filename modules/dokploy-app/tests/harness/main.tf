@@ -30,7 +30,7 @@ module "app" {
   env_spec              = local.env_spec
   image_tag             = "abc1234"
   secrets               = { for k in concat(try(local.manifest.secrets, []), try(local.manifest.optionalSecrets, [])) : k => lookup(var.secrets, k, "s3cr3t-${lower(k)}") }
-  compose_file          = local.compose != null ? (fileexists("${local.root}/${local.compose}") ? file("${local.root}/${local.compose}") : "services: {}\n") : ""
+  compose_file          = local.compose != null ? file("${local.root}/${local.compose}") : ""
   backup_destination_id = "dest-${var.environment}"
   redeploy_after_mounts = false
 }
@@ -43,4 +43,9 @@ output "rendered" {
 output "env_keys" {
   description = "Variable names only (no values) — compared against the live stacks."
   value       = sort([for l in split("\n", nonsensitive(module.app.rendered.compose_env == null ? "" : module.app.rendered.compose_env)) : split("=", l)[0] if l != ""])
+}
+
+output "compose_file_b64" {
+  description = "Rendered compose, base64 (tests compare it with the source)."
+  value       = base64encode(nonsensitive(module.app.rendered.compose_file == null ? "" : module.app.rendered.compose_file))
 }

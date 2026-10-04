@@ -22,6 +22,10 @@ on:
         description: Environment to deploy (default — from the branch)
         type: string
         default: ""
+      plan_only:
+        description: Only show the plan, apply nothing
+        type: boolean
+        default: false
       manifest:
         description: Path of the manifest in the app repo
         type: string
@@ -78,7 +82,7 @@ jobs:
       - uses: opentofu/setup-opentofu@v1
         with: { tofu_version: 1.12.3, tofu_wrapper: false }
       - run: pip install --quiet jsonschema pyyaml
-      - name: Deploy ${{ needs.resolve.outputs.environment }} @ ${{ needs.resolve.outputs.image_tag }}
+      - name: ${{ inputs.plan_only && 'Plan' || 'Deploy' }} ${{ needs.resolve.outputs.environment }} @ ${{ needs.resolve.outputs.image_tag }}
         env:
           DOKPLOY_URL: ${{ vars.DOKPLOY_URL }}
           DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
@@ -91,4 +95,5 @@ jobs:
           SECRETS_JSON: ${{ toJSON(secrets) }}
         run: |
           infra/scripts/deploy-app.sh "app/${{ inputs.manifest }}" \
-            "${{ needs.resolve.outputs.environment }}" "${{ needs.resolve.outputs.image_tag }}"
+            "${{ needs.resolve.outputs.environment }}" "${{ needs.resolve.outputs.image_tag }}" \
+            "${{ inputs.plan_only && 'plan' || 'apply' }}"
