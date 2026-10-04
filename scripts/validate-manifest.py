@@ -59,6 +59,11 @@ def semantic_errors(m):
         for k, d in dbs.items():
             if not d.get("database"):
                 errs.append(f"databases.{k}.database is required (backups)")
+        # Deleting a compose deletes its named volumes unless they are external.
+        for env, e in m["environments"].items():
+            if e.get("externalVolumes") is not True:
+                errs.append(f"environments.{env}.externalVolumes must be true in mode: compose "
+                            "(Dokploy deletes the named volumes of a deleted compose otherwise)")
     return errs
 
 

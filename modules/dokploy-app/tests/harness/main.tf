@@ -32,6 +32,7 @@ module "app" {
   secrets               = { for k in concat(try(local.manifest.secrets, []), try(local.manifest.optionalSecrets, [])) : k => lookup(var.secrets, k, "s3cr3t-${lower(k)}") }
   compose_file          = local.compose != null ? (fileexists("${local.root}/${local.compose}") ? file("${local.root}/${local.compose}") : "services: {}\n") : ""
   backup_destination_id = "dest-${var.environment}"
+  redeploy_after_mounts = false
 }
 
 output "rendered" {

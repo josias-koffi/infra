@@ -57,3 +57,15 @@ variable "registry_ids" {
   description = "Dokploy registry ids by name (platform output)."
   default     = {}
 }
+
+variable "dokploy_endpoint" {
+  type        = string
+  description = "Dokploy URL, for the API calls the provider does not model (redeploy). DOKPLOY_API_KEY comes from the environment."
+  default     = "https://dokploy.ops.koklo.dev"
+}
+
+variable "redeploy_after_mounts" {
+  type        = bool
+  description = "Redeploy an application after its mounts change (off in tests)."
+  default     = true
+}

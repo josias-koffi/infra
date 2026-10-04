@@ -77,11 +77,32 @@ jobs:
             -var manifest_path="$GITHUB_WORKSPACE/app/.deploy/manifest.yaml" \
             -var environment="${{ inputs.environment }}" -var image_tag=purge
           echo "Volumes that delete_volumes would remove: ${{ steps.app.outputs.volume_prefix }}_*"
+      # Always before the destroy: deleting a compose removes its non-external
+      # named volumes, and deleting a database service removes its data volume.
+      - name: Archive the env volumes
+        if: ${{ !inputs.dry_run }}
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          PREFIX: ${{ steps.app.outputs.volume_prefix }}
+          SVC_PREFIX: ${{ steps.app.outputs.name }}-${{ inputs.environment }}-
+        with:
+          host: ${{ secrets.VPS20_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: PREFIX,SVC_PREFIX
+          script: |
+            set -eu
+            out=/opt/backups/purge/${PREFIX}-$(date +%Y%m%dT%H%M%S); mkdir -p "$out"
+            for v in $(docker volume ls -q | grep -E "^${PREFIX}_|^${SVC_PREFIX}.*-data$" || true); do
+              docker run --rm -v "$v":/v:ro -v "$out":/out alpine tar czf "/out/$v.tgz" -C /v .
+              echo "archived $v"
+            done
+            echo "$out" > /tmp/last-purge-archive
       - name: Destroy services
         if: ${{ !inputs.dry_run }}
         working-directory: infra/apps/env
         run: tofu apply -input=false destroy.tfplan
-      - name: Archive then delete volumes
+      - name: Delete remaining volumes
         if: ${{ !inputs.dry_run && inputs.delete_volumes }}
         uses: appleboy/ssh-action@v1.2.0
         env:
@@ -93,11 +114,7 @@ jobs:
           envs: PREFIX
           script: |
             set -eu
-            ts=$(date +%Y%m%dT%H%M%S); out=/opt/backups/purge/$ts; mkdir -p "$out"
-            for v in $(docker volume ls -q | grep -E "^${PREFIX}_"); do
-              if docker ps -aq --filter volume="$v" | grep -q .; then
-                echo "skip $v: still used by a container"; continue
-              fi
-              docker run --rm -v "$v":/v:ro -v "$out":/out alpine tar czf "/out/$v.tgz" -C /v .
-              docker volume rm "$v" && echo "archived to $out and removed $v"
+            for v in $(docker volume ls -q | grep -E "^${PREFIX}_" || true); do
+              if docker ps -aq --filter volume="$v" | grep -q .; then echo "skip $v: still used"; continue; fi
+              docker volume rm "$v" && echo "removed $v (archive: $(cat /tmp/last-purge-archive))"
             done

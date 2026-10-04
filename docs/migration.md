@@ -19,7 +19,22 @@ set `externalVolumes: true`: a wrong prefix fails the deploy instead of
 starting on empty volumes. Their rendered env was checked against the live
 `.env` files: every variable present, none missing.
 
+## Verified behaviour (throwaway project, 2026-10-04)
+
+- Changing `environment_id` of a compose moves it **in place**: same compose,
+  same appName, same container (not even restarted), same volumes.
+- **Deleting a compose deletes its named volumes**, unless they are declared
+  `external: true` — hence `externalVolumes: true` everywhere in compose mode,
+  and `tofu state rm` (never `destroy`) to release the old states.
+- Deleting an application leaves the volumes it mounted.
+- A mount added to an existing application only applies after a redeploy (the
+  module redeploys automatically after mount changes).
+
 ## 0. Safety net
+
+Done 2026-10-04: `/opt/backups/pre-paas-20261004T202924/` on VPS20 and
+`~/perso/vps/snapshot/pre-paas-20261004T202924/` (4 dumps with exact row
+counts, Jemima media, Jobspark api_data).
 
 ```bash
 # fresh dumps of the four databases, pushed off the VPS

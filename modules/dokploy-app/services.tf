@@ -248,3 +248,23 @@ resource "dokploy_mount" "app" {
   volume_name  = each.value.volume
   mount_path   = each.value.path
 }
+
+# Dokploy deploys an application at create time, before its mounts exist, and
+# a new mount does not redeploy it (verified 2026-10-04): the app would run
+# without its volume. Redeploy once the mounts of an app change.
+resource "terraform_data" "redeploy_after_mounts" {
+  for_each = var.redeploy_after_mounts ? toset(distinct([for m in local.app_volumes : m.app])) : toset([])
+
+  triggers_replace = [for k, m in dokploy_mount.app : m.id if local.app_volumes[k].app == each.key]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      curl -fsS -X POST "$DOKPLOY_ENDPOINT/api/application.redeploy" \
+        -H "x-api-key: $DOKPLOY_API_KEY" -H "Content-Type: application/json" \
+        -d '{"applicationId":"${dokploy_application.svc[each.key].id}"}'
+    EOT
+    environment = {
+      DOKPLOY_ENDPOINT = var.dokploy_endpoint
+    }
+  }
+}

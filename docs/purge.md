@@ -19,9 +19,11 @@ Volumes are **never** pruned automatically.
   state (database, cache, compose, mount). Stateless apps are removed normally.
 - An environment: run **Purge environment** (Actions → `purge-env.yml`):
   `repository`, `environment`, `confirm=<app>/<env>`. Keep `dry_run` on first
-  to read the destroy plan. `delete_volumes` archives each
-  `<volumePrefix>_*` volume to `/opt/backups/purge/<ts>/` before removing it,
-  and skips any volume still used by a container. The `purge` GitHub
+  to read the destroy plan. Before destroying anything, every volume of the
+  env (`<volumePrefix>_*` and the data volumes of its database services) is
+  archived to `/opt/backups/purge/`. `delete_volumes` then removes the external
+  volumes that are left (a deleted compose takes its non-external volumes with
+  it, a deleted database its data volume — verified on Dokploy 0.30.6). The `purge` GitHub
   environment requires a reviewer.
 
 ## One-off clean-up of VPS20 (migration leftovers, 2026-10-04 audit)

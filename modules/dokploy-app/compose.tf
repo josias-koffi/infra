@@ -35,6 +35,9 @@ locals {
     },
     # external: true makes compose refuse to start on a missing volume instead
     # of silently creating an empty one — the guard against a wrong prefix.
+    # It is also what keeps the data when the compose is deleted: Dokploy
+    # removes the named volumes of a deleted compose, but not external ones
+    # (verified 2026-10-04).
     local.external_volumes && try(local.compose_doc.volumes, null) != null ? {
       volumes = {
         for name, vol in local.compose_doc.volumes : name => merge(vol == null ? {} : vol, { external = true })

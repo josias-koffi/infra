@@ -132,6 +132,7 @@ module "app" {
   secrets      = local.secrets
   compose_file = local.compose_path != null ? file("${local.app_root}/${local.compose_path}") : ""
 
+  dokploy_endpoint      = var.dokploy_endpoint
   backup_destination_id = data.terraform_remote_state.platform.outputs.backup_destination_ids[var.environment == "production" ? "production" : "staging"]
   registry_ids          = data.terraform_remote_state.platform.outputs.registry_ids
 }
