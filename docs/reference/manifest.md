@@ -20,6 +20,7 @@ Complétion dans l'éditeur, en première ligne :
 | `dns` | `cloudflare` \| `external` | `cloudflare` | crée les enregistrements A des domaines, en refusant d'écraser ceux d'un autre propriétaire ([DNS](../guides/deploy-an-app.md#dns)) ; `external` : tu les gères ailleurs |
 | `secrets` | liste de noms | | secrets **obligatoires**, lus dans l'environnement GitHub |
 | `optionalSecrets` | liste de noms | | secrets valant `""` s'ils sont absents |
+| `lockedSecrets` | liste de noms | | secrets qui ne peuvent plus changer une fois posés ; les mots de passe des bases et caches le sont toujours ([secrets verrouillés](../guides/deploy-an-app.md#secrets-verrouillés)) |
 | `vars` | map | | configuration commune à tous les environnements (voir *Templates*) |
 | `apps`, `workers` | map de *composants* | | mode services |
 | `databases` | map | | bases de données |

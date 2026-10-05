@@ -48,6 +48,10 @@
       "$ref": "#/$defs/names",
       "description": "Secrets defaulting to an empty string."
     },
+    "lockedSecrets": {
+      "$ref": "#/$defs/names",
+      "description": "Secrets that can never change once set (they sign or encrypt stored data). Database and cache passwords are always locked."
+    },
     "vars": {
       "$ref": "#/$defs/vars"
     },

@@ -58,17 +58,37 @@ rc=$?
 set -e
 [ $rc -eq 1 ] && exit 1
 
-# A plan that destroys a stateful service is never applied unattended.
+# Never applied unattended: a plan that destroys a stateful service, or that
+# changes a locked secret (database/cache passwords, `lockedSecrets`) — the
+# data was created with the old value. ALLOW_SECRET_CHANGE="NAME,…" lets a
+# deliberate, manual rotation through (docs: deploy-an-app.md#secrets-verrouillés).
 if tofu -chdir="$ROOT/apps/env" show -json tfplan | python3 -c '
-import json, sys
+import hashlib, json, os, sys
 plan = json.load(sys.stdin)
+changes = plan.get("resource_changes", [])
 stateful = ("dokploy_postgres", "dokploy_mysql", "dokploy_mariadb", "dokploy_mongo", "dokploy_redis", "dokploy_compose", "dokploy_mount")
-bad = [r["address"] for r in plan.get("resource_changes", [])
-       if r["type"] in stateful and "delete" in r["change"]["actions"]]
+bad = [r["address"] for r in changes if r["type"] in stateful and "delete" in r["change"]["actions"]]
 if bad:
     print("Refusing to destroy stateful resources:", *bad, sep="\n  ")
     print("Use the purge-env workflow (protected) for an intended removal.")
     sys.exit(1)
+empty = hashlib.sha256(b"").hexdigest()
+allowed = {n.strip() for n in os.environ.get("ALLOW_SECRET_CHANGE", "").split(",") if n.strip()}
+changed = []
+for r in changes:
+    if r["type"] != "terraform_data" or not r["address"].endswith("terraform_data.locked_secrets"):
+        continue
+    before = ((r["change"].get("before") or {}).get("input")) or {}
+    after = ((r["change"].get("after") or {}).get("input")) or {}
+    changed += [n for n, h in before.items() if h != empty and n in after and after[n] != h]
+refused = sorted(set(changed) - allowed)
+if refused:
+    print("Refusing to change locked secrets:", *refused, sep="\n  ")
+    print("Restore the previous value in the GitHub environment, or rotate it by hand")
+    print("(docs: guides/deploy-an-app.md, section Secrets verrouillés).")
+    sys.exit(1)
+if changed:
+    print("Locked secrets changed on purpose (ALLOW_SECRET_CHANGE):", *sorted(changed), sep="\n  ")
 '; then :; else exit 1; fi
 
 if [ "$ACTION" = apply ] && [ $rc -eq 2 ]; then

@@ -136,8 +136,9 @@ Déroulement du job `deploy` (`scripts/deploy-app.sh`) :
 3. `apps/project` : projet et environnements ;
 4. `apps/env` : plan de l'environnement visé (state séparé : un apply de
    staging ne touche jamais la prod) ;
-5. **garde-fou** : le plan est refusé s'il supprime une base, un cache, un
-   compose ou un montage ;
+5. **garde-fous** : le plan est refusé s'il supprime une base, un cache, un
+   compose ou un montage, ou s'il change un secret verrouillé (voir
+   [Secrets verrouillés](#secrets-verrouillés)) ;
 6. apply ;
 7. smoke test : chaque domaine doit répondre, et chaque `healthcheck` doit
    renvoyer un 2xx (jusqu'à 5 minutes d'attente).
@@ -186,6 +187,44 @@ Reprendre un enregistrement géré ailleurs (autre OpenTofu, console) :
 
 `dns: external` désactive tout cela, pour une app dont les enregistrements
 restent gérés ailleurs.
+
+## Secrets verrouillés
+
+Une base ne lit son mot de passe qu'à la création de son volume. Changer
+`DB_PASSWORD` ensuite met à jour la variable du service, pas le rôle : les
+apps ne peuvent plus se connecter. Il en va de même pour un secret qui signe
+ou chiffre des données stockées (`PAYLOAD_SECRET`, une clé de chiffrement…).
+
+Sont donc verrouillés :
+
+- le mot de passe de chaque base et de chaque cache (`passwordSecret`, par
+  défaut `<CLÉ>_PASSWORD`) et le mot de passe root de mysql/mariadb, dans les
+  deux modes ;
+- chaque nom listé dans `lockedSecrets` :
+
+  ```yaml
+  secrets: [DB_PASSWORD, PAYLOAD_SECRET, ADMIN_PASSWORD]
+  lockedSecrets: [PAYLOAD_SECRET]
+  ```
+
+Au premier déploiement, l'empreinte SHA-256 de chacun est gardée dans le
+state. Un déploiement dont le plan change une empreinte est refusé avant
+l'apply : remets l'ancienne valeur dans l'environnement GitHub. Un secret
+optionnel encore vide peut toujours être renseigné une première fois.
+
+Ne verrouille que des valeurs longues et aléatoires : l'empreinte est lisible
+dans le state.
+
+Rotation volontaire, depuis ton poste :
+
+1. change le mot de passe dans le service lui-même, par exemple
+   `ALTER ROLE <user> WITH PASSWORD '…'` dans le conteneur Postgres ;
+2. mets la nouvelle valeur dans l'environnement GitHub ;
+3. déploie en levant le verrou pour ce nom seulement :
+
+   ```bash
+   ALLOW_SECRET_CHANGE=DB_PASSWORD make app-deploy MANIFEST=… ENV=staging TAG=<sha>
+   ```
 
 ## 5. Faire évoluer l'app
 

@@ -93,6 +93,10 @@ run "jemima_production_compose" {
     condition     = length(yamldecode(nonsensitive(output.rendered.compose_file)).services) == 5
     error_message = "the 5 services of the stack must survive the re-encoding"
   }
+  assert {
+    condition     = jsonencode(nonsensitive(output.rendered.locked_secrets)) == jsonencode(["POSTGRES_PASSWORD"])
+    error_message = "compose database password must be locked"
+  }
 }
 
 run "sample_services" {
@@ -118,5 +122,9 @@ run "sample_services" {
   assert {
     condition     = output.rendered.backups.db.db == "db/sample/production/db/" && output.rendered.backups.volumes["api:uploads"].volume == "sample-production_uploads"
     error_message = "default backups for db and volume"
+  }
+  assert {
+    condition     = jsonencode(nonsensitive(output.rendered.locked_secrets)) == jsonencode(["CACHE_PASSWORD", "DB_PASSWORD"])
+    error_message = "database and cache passwords are locked, SESSION_SECRET is not"
   }
 }

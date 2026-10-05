@@ -37,6 +37,9 @@ def semantic_errors(m):
         for s in c.get("secrets", []):
             if s not in secrets:
                 errs.append(f"{name}.secrets: '{s}' not declared in secrets")
+    for s in m.get("lockedSecrets", []):
+        if s not in secrets:
+            errs.append(f"lockedSecrets: '{s}' not declared in secrets")
     seen = {}
     for env, spec in m["environments"].items():
         for k, host in spec.get("domains", {}).items():

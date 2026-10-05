@@ -30,6 +30,7 @@ output "rendered" {
       db      = merge({ for k, b in dokploy_backup.native : k => b.prefix }, { for k, b in dokploy_backup.compose : k => b.prefix })
       volumes = { for k, b in dokploy_volume_backup.this : k => { volume = b.volume_name, prefix = b.prefix } }
     }
+    locked_secrets = local.locked_secret_names
     domains = merge(
       { for k, d in dokploy_domain.compose : k => "${d.host} -> ${d.service_name}:${d.port}" },
       { for k, d in dokploy_domain.app : k => "${d.host} -> :${d.port}" },
