@@ -2,7 +2,8 @@
 """Validate .deploy/manifest.yaml files against schema/manifest.v1.json.
 
 Beyond the JSON Schema: every `uses:` entry must name a declared component,
-every `domain:` must exist in each environment, and a database or cache needs
+every `domain:` must exist in each environment, a host belongs to one
+environment only (each one owns its DNS records), and a database or cache needs
 its password secret listed in `secrets`.
 
     scripts/validate-manifest.py path/to/.deploy/manifest.yaml [...]
@@ -36,6 +37,12 @@ def semantic_errors(m):
         for s in c.get("secrets", []):
             if s not in secrets:
                 errs.append(f"{name}.secrets: '{s}' not declared in secrets")
+    seen = {}
+    for env, spec in m["environments"].items():
+        for k, host in spec.get("domains", {}).items():
+            if host in seen:
+                errs.append(f"environments.{env}.domains.{k}: {host} already used by environments.{seen[host]}")
+            seen.setdefault(host, f"{env}.domains.{k}")
     if m.get("mode", "services") == "services":
         for k, d in dbs.items():
             if d.get("service"):

@@ -8,6 +8,7 @@ endif
 export AWS_ENDPOINT_URL_S3=$(R2_ENDPOINT)
 export AWS_ACCESS_KEY_ID=$(R2_ACCESS_KEY_ID)
 export AWS_SECRET_ACCESS_KEY=$(R2_SECRET_ACCESS_KEY)
+export CLOUDFLARE_API_TOKEN=$(CF_API_TOKEN)
 export TF_VAR_dokploy_endpoint=$(DOKPLOY_URL)
 export TF_VAR_state_bucket=$(TF_STATE_BUCKET)
 export TF_VAR_r2_endpoint=$(R2_ENDPOINT)

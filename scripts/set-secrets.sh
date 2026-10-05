@@ -5,8 +5,14 @@
 # once every required secret is set.
 #
 #   scripts/set-secrets.sh [owner/repo]     (default: the repo of the current checkout)
+#   scripts/set-secrets.sh --app owner/app  only what an app repo needs (deploy + DNS)
 set -euo pipefail
 
+APP_MODE=false
+if [ "${1:-}" = --app ]; then
+  APP_MODE=true; shift
+  [ -n "${1:-}" ] || { echo "Usage: $0 --app owner/app"; exit 1; }
+fi
 REPO=${1:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}
 ENV_FILE="$(cd "$(dirname "$0")/.." && pwd)/.env"
 [ -f "$ENV_FILE" ] || { echo "No .env — cp .env.example .env and fill it."; exit 1; }
@@ -17,8 +23,14 @@ get() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -1 | sed 's/^"\(.*\)"$/\1/'; }
 REQUIRED=(DOKPLOY_URL TF_STATE_BUCKET R2_BACKUP_BUCKET_PROD R2_BACKUP_BUCKET_STAGING DOKPLOY_API_KEY R2_ENDPOINT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY
   R2_BACKUP_PROD_ACCESS_KEY_ID R2_BACKUP_PROD_SECRET_ACCESS_KEY
   R2_BACKUP_STAGING_ACCESS_KEY_ID R2_BACKUP_STAGING_SECRET_ACCESS_KEY)
-OPTIONAL=(GHCR_TOKEN NODE_SSH_PRIVATE_KEY)
+OPTIONAL=(GHCR_TOKEN NODE_SSH_PRIVATE_KEY CF_API_TOKEN CF_ZONE_ID)
 VARIABLES=(DOKPLOY_URL TF_STATE_BUCKET R2_BACKUP_BUCKET_PROD R2_BACKUP_BUCKET_STAGING GHCR_USERNAME NODE_SSH_PUBLIC_KEY)
+if $APP_MODE; then
+  # The secrets the reusable deploy workflow reads through `secrets: inherit`.
+  REQUIRED=(DOKPLOY_URL TF_STATE_BUCKET DOKPLOY_API_KEY R2_ENDPOINT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY)
+  OPTIONAL=(CF_API_TOKEN CF_ZONE_ID)
+  VARIABLES=(DOKPLOY_URL TF_STATE_BUCKET)
+fi
 
 missing=()
 is_var() { [[ " ${VARIABLES[*]} " == *" $1 "* ]]; }
@@ -37,7 +49,10 @@ for k in "${VARIABLES[@]}"; do
   [ -n "$v" ] && gh variable set "$k" -R "$REPO" --body "$v" && echo "✓ variable $k"
 done
 
-if [ ${#missing[@]} -eq 0 ]; then
+if $APP_MODE; then
+  [ ${#missing[@]} -eq 0 ] || { echo "Missing in .env: ${missing[*]}"; exit 1; }
+  echo "Manifest secrets go in the GitHub environments (staging, production), not here."
+elif [ ${#missing[@]} -eq 0 ]; then
   gh variable set PLATFORM_ENABLED -R "$REPO" --body true && echo "✓ variable PLATFORM_ENABLED=true"
 else
   echo "Platform job stays off — missing: ${missing[*]}"

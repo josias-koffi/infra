@@ -29,6 +29,7 @@ m = yaml.safe_load(open(sys.argv[1]))
 if sys.argv[2] not in m["environments"]:
     sys.exit(f"environment '{sys.argv[2]}' is not declared in {sys.argv[1]}")
 PY
+python3 "$ROOT/scripts/check-dns.py" "$MANIFEST" "$ENVIRONMENT"
 
 echo "::group::${APP} — project (apps/${APP}/project.tfstate)"
 tofu -chdir="$ROOT/apps/project" init -input=false -reconfigure \

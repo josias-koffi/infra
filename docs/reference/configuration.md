@@ -15,6 +15,7 @@ secrets ou de variables selon la colonne *GitHub*.
 | `R2_BACKUP_BUCKET_PROD`, `R2_BACKUP_BUCKET_STAGING` | variable | oui | buckets de sauvegarde |
 | `R2_BACKUP_PROD_ACCESS_KEY_ID`, `R2_BACKUP_PROD_SECRET_ACCESS_KEY` | secret | oui | token du bucket de prod |
 | `R2_BACKUP_STAGING_ACCESS_KEY_ID`, `R2_BACKUP_STAGING_SECRET_ACCESS_KEY` | secret | oui | token du bucket de staging |
+| `CF_API_TOKEN`, `CF_ZONE_ID` | secret | non | DNS des apps (`purge-env.yml` ici ; poussés dans chaque repo d'app par `--app`) |
 | `GHCR_USERNAME` / `GHCR_TOKEN` | variable / secret | non | identifiants pour tirer des images privées |
 | `NODE_SSH_PUBLIC_KEY` / `NODE_SSH_PRIVATE_KEY` | variable / secret | avec des serveurs distants | `make node-key` |
 | `NODE_ADMIN_USER` | — | non (`devops`) | utilisateur admin créé par Ansible |
@@ -30,6 +31,9 @@ Secrets propres aux workflows de maintenance :
 | `SSH_PRIVATE_KEY`, `MANAGER_IP`, `APP_REPOS_READ_TOKEN` | `purge-env.yml` |
 
 ## Repo d'une app
+
+`scripts/set-secrets.sh --app <owner>/<app>` pose les variables et secrets du
+repo depuis le `.env` d'infra.
 
 | Nom | Type | Rôle |
 |---|---|---|

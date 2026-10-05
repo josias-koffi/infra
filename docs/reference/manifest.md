@@ -17,7 +17,7 @@ Complétion dans l'éditeur, en première ligne :
 | `description` | string | | description du projet |
 | `server` | string | `vps20` | clé de `platform/nodes.yaml` |
 | `mode` | `services` \| `compose` | `services` | un service Dokploy par composant, ou un seul compose (mode legacy, pour l'existant) |
-| `dns` | `cloudflare` \| `external` | `cloudflare` | crée les enregistrements A des domaines (`external` : tu les gères ailleurs) |
+| `dns` | `cloudflare` \| `external` | `cloudflare` | crée les enregistrements A des domaines, en refusant d'écraser ceux d'un autre propriétaire ([DNS](../guides/deploy-an-app.md#dns)) ; `external` : tu les gères ailleurs |
 | `secrets` | liste de noms | | secrets **obligatoires**, lus dans l'environnement GitHub |
 | `optionalSecrets` | liste de noms | | secrets valant `""` s'ils sont absents |
 | `vars` | map | | configuration commune à tous les environnements (voir *Templates*) |
@@ -112,6 +112,9 @@ environments:
     overrides:                         # fusion sur deux niveaux : composant, puis resources
       apps: { api: { replicas: 2, resources: { memory: 2g } } }
 ```
+
+Un même hôte ne peut appartenir qu'à un seul environnement (le validateur le
+vérifie) : chacun possède ses enregistrements DNS.
 
 Le workflow de l'app ne contient aucune règle de déclenchement : le job
 `resolve` applique `branch` et `deploy` (voir [déployer une app](../guides/deploy-an-app.md#4-déployer)).

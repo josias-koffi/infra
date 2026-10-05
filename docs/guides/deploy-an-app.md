@@ -80,6 +80,9 @@ privée, déclare `registry: ghcr` sur le composant ; le registre est créé par
 | Secret | `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | token du bucket de state |
 | Secret | `CF_API_TOKEN`, `CF_ZONE_ID` | seulement avec `dns: cloudflare` (le défaut) ; token *Zone → DNS → Edit* |
 
+Raccourci : `scripts/set-secrets.sh --app <owner>/<app>` pousse ces variables
+et secrets depuis le `.env` d'infra.
+
 *Settings → Environments* : crée `staging` et `production`. Dans **chacun**,
 ajoute les secrets listés par le manifest (`secrets:` et `optionalSecrets:`),
 avec des valeurs différentes par environnement. Chaque base et chaque cache
@@ -118,13 +121,14 @@ Mettre en prod ce qui tourne en staging : merge `develop` → `main`, puis
 Déroulement du job `deploy` (`scripts/deploy-app.sh`) :
 
 1. validation du manifest (schéma et cohérence) ;
-2. `apps/project` : projet et environnements ;
-3. `apps/env` : plan de l'environnement visé (state séparé : un apply de
+2. vérification du DNS (`scripts/check-dns.py`, avec `dns: cloudflare`) : voir [DNS](#dns) ;
+3. `apps/project` : projet et environnements ;
+4. `apps/env` : plan de l'environnement visé (state séparé : un apply de
    staging ne touche jamais la prod) ;
-4. **garde-fou** : le plan est refusé s'il supprime une base, un cache, un
+5. **garde-fou** : le plan est refusé s'il supprime une base, un cache, un
    compose ou un montage ;
-5. apply ;
-6. smoke test : chaque domaine doit répondre, et chaque `healthcheck` doit
+6. apply ;
+7. smoke test : chaque domaine doit répondre, et chaque `healthcheck` doit
    renvoyer un 2xx (jusqu'à 5 minutes d'attente).
 
 Pour planifier depuis ton poste, sans rien appliquer :
@@ -133,6 +137,44 @@ Pour planifier depuis ton poste, sans rien appliquer :
 cd <chemin>/infra
 make app-plan MANIFEST=../mon-app/.deploy/manifest.yaml ENV=staging
 ```
+
+## DNS
+
+Avec `dns: cloudflare` (le défaut), il suffit d'écrire le domaine dans
+`environments.<env>.domains` : le déploiement crée un enregistrement A vers
+l'IP du serveur, non proxifié (challenge HTTP de Let's Encrypt), et le
+supprime quand le domaine disparaît du manifest.
+
+**Un enregistrement n'a qu'un propriétaire.** Avant le plan,
+`scripts/check-dns.py` refuse le déploiement si :
+
+- un domaine n'appartient pas à la zone `CF_ZONE_ID` ;
+- un enregistrement A, AAAA ou CNAME existe déjà sur ce nom sans avoir été
+  créé par `apps/env` (commentaire `<app> <env> — infra apps/env`) ni déclaré
+  dans `apps/adopt/<app>.yaml`. Sans ce contrôle, l'apply ajouterait un
+  second enregistrement à côté de celui d'un autre state.
+
+Reprendre un enregistrement géré ailleurs (autre OpenTofu, console) :
+
+1. noter son id (`tofu state show <ressource>` dans l'autre state, ou l'API
+   Cloudflare) ;
+2. le retirer de l'autre state (`tofu state rm <ressource>`) et supprimer son
+   bloc, sans `apply` qui le détruirait ;
+3. le déclarer pour l'import :
+
+   ```yaml
+   # apps/adopt/<app>.yaml
+   environments:
+     production:
+       dnsRecords: { web: <id> }    # clé de environments.production.domains
+   ```
+
+4. déployer l'environnement : l'enregistrement est importé, puis aligné sur
+   le manifest (IP du serveur, non proxifié) ;
+5. supprimer l'entrée `dnsRecords` du fichier d'adoption.
+
+`dns: external` désactive tout cela, pour une app dont les enregistrements
+restent gérés ailleurs.
 
 ## 5. Faire évoluer l'app
 
