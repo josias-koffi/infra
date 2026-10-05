@@ -8,5 +8,5 @@ resource "dokploy_registry" "ghcr" {
   url                 = "ghcr.io"
   username            = var.ghcr_username
   password_wo         = var.ghcr_token
-  password_wo_version = 1
+  password_wo_version = 2
 }
