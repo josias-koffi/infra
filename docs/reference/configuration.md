@@ -33,7 +33,8 @@ Secrets propres aux workflows de maintenance :
 ## Repo d'une app
 
 `scripts/set-secrets.sh --app <owner>/<app>` pose les variables et secrets du
-repo depuis le `.env` d'infra.
+repo depuis le `.env` d'infra ; `scripts/init-app-env.sh`, lancé dans le repo
+de l'app, crée ses environnements et leurs secrets.
 
 | Nom | Type | Rôle |
 |---|---|---|

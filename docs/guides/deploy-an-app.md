@@ -85,7 +85,18 @@ et secrets depuis le `.env` d'infra.
 
 *Settings → Environments* : crée `staging` et `production`. Dans **chacun**,
 ajoute les secrets listés par le manifest (`secrets:` et `optionalSecrets:`),
-avec des valeurs différentes par environnement. Chaque base et chaque cache
+avec des valeurs différentes par environnement.
+
+Raccourci, depuis le repo de l'app :
+
+```bash
+<chemin>/infra/scripts/init-app-env.sh            # ou -R owner/app -e staging
+```
+
+Il crée les environnements du manifest et demande chaque secret manquant :
+Entrée en génère un aléatoire pour les mots de passe, clés et tokens, les
+autres (email, utilisateur) sont à saisir. Il ne réécrit jamais un secret
+déjà posé : relancé, il ne complète que ce qui manque. Chaque base et chaque cache
 attend un secret `<CLÉ>_PASSWORD` (par exemple `DB_PASSWORD`), sauf si
 `passwordSecret` dit autre chose.
 
