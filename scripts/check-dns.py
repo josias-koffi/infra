@@ -11,10 +11,12 @@ Otherwise the apply would add a second record next to the one another state
 
 Environment: CLOUDFLARE_API_TOKEN, CF_ZONE_ID.
 """
+import http.client
 import json
 import os
 import pathlib
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -26,11 +28,20 @@ API = "https://api.cloudflare.com/client/v4"
 
 def cf(path, token):
     req = urllib.request.Request(f"{API}{path}", headers={"Authorization": f"Bearer {token}"})
-    try:
-        with urllib.request.urlopen(req, timeout=20) as r:
-            body = json.load(r)
-    except urllib.error.HTTPError as e:
-        sys.exit(f"Cloudflare API {path}: HTTP {e.code} — check CF_API_TOKEN (Zone → DNS → Edit) and CF_ZONE_ID")
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                body = json.load(r)
+            break
+        except urllib.error.HTTPError as e:
+            if e.code < 500 and e.code != 429:
+                sys.exit(f"Cloudflare API {path}: HTTP {e.code} — check CF_API_TOKEN (Zone → DNS → Edit) and CF_ZONE_ID")
+            err = f"HTTP {e.code}"
+        except (urllib.error.URLError, http.client.HTTPException, OSError) as e:
+            err = repr(e)
+        time.sleep(2 ** attempt)
+    else:
+        sys.exit(f"Cloudflare API {path}: unreachable after 4 attempts ({err})")
     if not body.get("success"):
         sys.exit(f"Cloudflare API {path}: {body.get('errors')}")
     return body["result"]
@@ -58,7 +69,7 @@ def main(manifest_path, environment):
     ours = f"{app} {environment} — infra apps/env"  # comment of cloudflare_record.domains
 
     zone = cf(f"/zones/{zone_id}", token)["name"]
-    errs = []
+    errs, foreign = [], False
     for key, host in domains.items():
         if host != zone and not host.endswith(f".{zone}"):
             errs.append(f"{key}: {host} is not in the zone {zone} (CF_ZONE_ID)")
@@ -69,16 +80,18 @@ def main(manifest_path, environment):
                 continue
             if r.get("comment") == ours or adopted.get(key) == r["id"]:
                 continue
+            foreign = True
             errs.append(f"{key}: {host} already has a {r['type']} record ({r['content']}, id {r['id']}, "
                         f"comment {r.get('comment')!r}) owned elsewhere")
 
     if errs:
-        print("✗ DNS — records this deploy would duplicate:")
+        print("✗ DNS — this deploy would create records it must not:")
         for e in errs:
             print(f"    {e}")
-        print("Remove the record from the state that owns it, then adopt it: "
-              f"apps/adopt/{app}.yaml → environments.{environment}.dnsRecords.<key>: <id> "
-              "(see docs/guides/deploy-an-app.md#dns)")
+        if foreign:
+            print("Remove the record from the state that owns it, then adopt it: "
+                  f"apps/adopt/{app}.yaml → environments.{environment}.dnsRecords.<key>: <id> "
+                  "(see docs/guides/deploy-an-app.md#dns)")
         return 1
     print(f"✓ DNS — {len(domains)} domain(s) of {app}/{environment} in {zone}, no foreign record")
     return 0
