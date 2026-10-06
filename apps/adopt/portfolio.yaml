@@ -1,0 +1,5 @@
+# One-shot adoption: koklo.dev (@) was managed by koklo-infra/terraform/dns.tf
+# (cloudflare_record.root). Remove this entry once production has deployed.
+environments:
+  production:
+    dnsRecords: { web: 4006ae1a5c63aa54a0e0fd6cf03f3185 }
