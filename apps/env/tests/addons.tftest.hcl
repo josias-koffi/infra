@@ -40,7 +40,10 @@ override_data {
 
 override_data {
   target = data.terraform_remote_state.zones
-  values = { outputs = { mail_domains = { "example.com" = { id = "dom-1", region = "eu-west-1" } } } }
+  values = { outputs = {
+    mail_domains        = { "example.com" = { id = "dom-1", region = "eu-west-1" } }
+    email_routing_zones = ["example.com", "shop.example.com"]
+  } }
 }
 
 override_data {
@@ -102,4 +105,30 @@ run "mail_key_limited_to_the_domain" {
     condition     = nonsensitive(local.addons.mail.RESEND_API_KEY) == "re_sending" && nonsensitive(local.addons.mail.SMTP_PASSWORD) == "re_sending" && nonsensitive(local.addons.mail.MAIL_DOMAIN) == "example.com"
     error_message = "the token comes from the creation answer, for the API and for SMTP"
   }
+}
+
+run "forwarding_rules_in_the_right_zone" {
+  command = apply
+
+  assert {
+    condition     = cloudflare_email_routing_rule.forward["contact@shop.example.com"].zone_id == "zone-shop" && cloudflare_email_routing_rule.forward["orders@example.com"].zone_id == "zone-example"
+    error_message = "each address goes to the zone with the longest matching suffix (lowercased)"
+  }
+  assert {
+    condition     = jsonencode(cloudflare_email_routing_rule.forward["orders@example.com"].actions[0].value) == jsonencode(["me@gmail.com", "shop@gmail.com"]) && cloudflare_email_routing_rule.forward["contact@shop.example.com"].matchers[0].value == "contact@shop.example.com"
+    error_message = "one rule per address, forwarding to every listed mailbox"
+  }
+}
+
+run "forwarding_refused_where_routing_is_off" {
+  command = plan
+
+  override_data {
+    target = data.terraform_remote_state.zones
+    values = { outputs = {
+      mail_domains        = { "example.com" = { id = "dom-1", region = "eu-west-1" } }
+      email_routing_zones = ["example.com"]
+    } }
+  }
+  expect_failures = [cloudflare_email_routing_rule.forward]
 }

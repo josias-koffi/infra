@@ -201,10 +201,32 @@ environments:
     vars: { LOG_LEVEL: info }
     overrides:                         # fusion sur deux niveaux : composant, puis resources
       apps: { api: { replicas: 2, resources: { memory: 2g } } }
+    emailRouting:                      # redirection d'adresses (Cloudflare Email Routing)
+      contact@example.com: moi@gmail.com
+      commandes@example.com: [moi@gmail.com, resto@gmail.com]
 ```
 
 Un même hôte ne peut appartenir qu'à un seul environnement (le validateur le
-vérifie) : chacun possède ses enregistrements DNS.
+vérifie) : chacun possède ses enregistrements DNS. Il en va de même pour une
+adresse de `emailRouting`.
+
+### Redirection d'adresses (`emailRouting`)
+
+Chaque ligne fait suivre une adresse d'une zone du compte vers une ou
+plusieurs boîtes, gratuitement (Cloudflare Email Routing) :
+
+- `zones/` active Email Routing sur chaque zone du compte qui n'a pas déjà son
+  propre service mail à l'apex (un MX ou un SPF étranger : Google Workspace…).
+  Ces zones sont listées dans sa sortie `email_routing_skipped` et le
+  déploiement refuse d'y créer une règle ;
+- les boîtes de destination sont enregistrées au déploiement. **Une seule
+  action à la main, une fois par boîte** : cliquer le lien de confirmation que
+  Cloudflare y envoie. D'ici là, le déploiement prévient sans échouer ;
+- retirer une ligne supprime la règle ; la boîte reste enregistrée (elle peut
+  servir à d'autres apps).
+
+Compatible avec `mail` : Resend utilise le MX de `send.<domaine>`, pas celui
+de l'apex.
 
 Le workflow de l'app ne contient aucune règle de déclenchement : le job
 `resolve` applique `branch` et `deploy` (voir [déployer une app](../guides/deploy-an-app.md#4-déployer)).

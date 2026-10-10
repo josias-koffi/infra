@@ -33,6 +33,7 @@ PY
 DNS_OWNED=$(mktemp)
 trap 'rm -f "$DNS_OWNED"' EXIT
 python3 "$ROOT/scripts/check-dns.py" "$MANIFEST" "$ENVIRONMENT" "$DNS_OWNED"
+python3 "$ROOT/scripts/ensure-email-destinations.py" "$MANIFEST" "$ENVIRONMENT" $([ "$ACTION" = apply ] || echo --dry-run)
 
 echo "::group::${APP} — project (apps/${APP}/project.tfstate)"
 tofu -chdir="$ROOT/apps/project" init -input=false -reconfigure \

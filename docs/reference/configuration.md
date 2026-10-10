@@ -15,7 +15,7 @@ secrets ou de variables selon la colonne *GitHub*.
 | `R2_BACKUP_BUCKET_PROD`, `R2_BACKUP_BUCKET_STAGING` | variable | oui | buckets de sauvegarde |
 | `R2_BACKUP_PROD_ACCESS_KEY_ID`, `R2_BACKUP_PROD_SECRET_ACCESS_KEY` | secret | oui | token du bucket de prod |
 | `R2_BACKUP_STAGING_ACCESS_KEY_ID`, `R2_BACKUP_STAGING_SECRET_ACCESS_KEY` | secret | oui | token du bucket de staging |
-| `CF_API_TOKEN`, `CF_ACCOUNT_ID` | secret | non | DNS des apps dans toutes les zones du compte, buckets R2 et leurs tokens. Permissions du token : *Zone → Zone → Read* et *Zone → DNS → Edit* (toutes les zones), *Account → Workers R2 Storage → Edit*, *Account → Account API Tokens → Edit*. `CF_ZONE_ID` est déprécié : repli pour un hôte qu'aucune zone ne couvre |
+| `CF_API_TOKEN`, `CF_ACCOUNT_ID` | secret | non | DNS des apps dans toutes les zones du compte, buckets R2 et leurs tokens. Permissions du token : *Zone → Zone → Read* et *Zone → DNS → Edit* (toutes les zones), *Account → Workers R2 Storage → Edit*, *Account → Account API Tokens → Edit*, et pour `emailRouting` *Zone → Email Routing Rules → Edit*, *Zone → Zone Settings → Edit*, *Account → Email Routing Addresses → Edit*. `CF_ZONE_ID` est déprécié : repli pour un hôte qu'aucune zone ne couvre |
 | `RESEND_ADMIN_API_KEY` | secret | avec `mail` | clé Resend *full access* : `zones/` crée les domaines d'envoi, `apps/env` une clé d'envoi par app et environnement |
 | `ZONES_ENABLED` | variable | non | active le workflow `zones.yml` (à poser une fois `CF_*` et `RESEND_ADMIN_API_KEY` en place) |
 | `APP_REPOS_READ_TOKEN` | secret | oui pour déployer | token fine-grained *Contents: Read* sur les repos d'apps (`deploy-app.yml`, `purge-env.yml`) |

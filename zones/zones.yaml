@@ -12,3 +12,10 @@
 # owner already holds them (then they are left alone and listed).
 mail:
   ouiti.com: {}
+
+# Email Routing is turned on in every zone of the account whose apex has no
+# mail setup of its own (no foreign MX or SPF); the others are listed in the
+# output email_routing_skipped. Forwarding rules come from the manifests
+# (environments.<env>.emailRouting). To keep a zone out:
+# emailRouting:
+#   exclude: [example.com]

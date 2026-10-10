@@ -5,6 +5,10 @@
 # environment that sends from it. Each app/env then gets its own sending key,
 # limited to that domain (apps/env, add-on `mail`). Driven by zones.yaml.
 #
+# Email Routing (Cloudflare): turned on in every zone of the account that has
+# no mail setup of its own at its apex, so that a manifest can forward an
+# address (environments.<env>.emailRouting, rules made by apps/env).
+#
 #   make zones-plan / make zones-apply   (CI: .github/workflows/zones.yml)
 # ==============================================================================
 
@@ -102,6 +106,18 @@ locals {
     ]
   }
   managed = { for k, r in local.wanted : k => r if length(local.foreign[k]) == 0 }
+
+  # Email Routing: a zone whose apex already receives mail elsewhere (an MX that
+  # is not Cloudflare's, or an SPF without it) is left alone and listed.
+  routing_excluded   = try(local.config.emailRouting.exclude, [])
+  routing_candidates = { for z, id in local.zones : z => id if !contains(local.routing_excluded, z) }
+  routing_blocked = {
+    for z, _ in local.routing_candidates : z => concat(
+      [for r in data.cloudflare_dns_records.apex_mx[z].result : "MX ${r.content}" if !endswith(r.content, ".mx.cloudflare.net")],
+      [for r in data.cloudflare_dns_records.apex_spf[z].result : "SPF" if startswith(r.content, "v=spf1") && !strcontains(r.content, "_spf.mx.cloudflare.net")],
+    )
+  }
+  routing_zones = { for z, id in local.routing_candidates : z => id if length(local.routing_blocked[z]) == 0 }
 }
 
 data "cloudflare_zones" "all" {
@@ -171,6 +187,30 @@ resource "terraform_data" "verify" {
   }
 
   depends_on = [cloudflare_dns_record.mail]
+}
+
+data "cloudflare_dns_records" "apex_mx" {
+  for_each = local.routing_candidates
+
+  zone_id = each.value
+  name    = { exact = each.key }
+  type    = "MX"
+}
+
+data "cloudflare_dns_records" "apex_spf" {
+  for_each = local.routing_candidates
+
+  zone_id = each.value
+  name    = { exact = each.key }
+  type    = "TXT"
+}
+
+# Turns Email Routing on and writes its MX and SPF records at the apex.
+resource "cloudflare_email_routing_dns" "this" {
+  for_each = local.routing_zones
+
+  zone_id = each.value
+  name    = each.key
 }
 
 # A sending domain created by hand: zones.yaml → mail.<domain>.resendId.

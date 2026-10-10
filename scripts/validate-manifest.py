@@ -81,6 +81,12 @@ def semantic_errors(m):
         if b.get("name") and len(m["environments"]) > 1:
             errs.append(f"buckets.{k}.name: one fixed name for {len(m['environments'])} environments would share the bucket — "
                         "drop it (default <name>-<env>-<key>) or set it in environments.<env>.overrides")
+    routed = {}
+    for env, spec in m["environments"].items():
+        for src in spec.get("emailRouting", {}):
+            if src.lower() in routed:
+                errs.append(f"environments.{env}.emailRouting: {src} already forwarded by environments.{routed[src.lower()]}")
+            routed.setdefault(src.lower(), env)
     seen = {}
     for env, spec in m["environments"].items():
         for k, host in spec.get("domains", {}).items():

@@ -107,7 +107,7 @@ import {
 }
 
 data "terraform_remote_state" "zones" {
-  count   = local.mail_spec != null ? 1 : 0
+  count   = local.mail_spec != null || length(local.routes) > 0 ? 1 : 0
   backend = "s3"
   config = {
     bucket                      = var.state_bucket

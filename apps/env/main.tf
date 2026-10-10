@@ -142,7 +142,7 @@ data "terraform_remote_state" "project" {
 }
 
 data "cloudflare_zones" "all" {
-  count   = length(local.dns_hosts) > 0 ? 1 : 0
+  count   = length(local.dns_hosts) > 0 || length(local.routes) > 0 ? 1 : 0
   account = var.cf_account_id != "" ? { id = var.cf_account_id } : null
   status  = "active"
 }

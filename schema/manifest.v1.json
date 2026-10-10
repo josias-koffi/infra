@@ -406,6 +406,30 @@
           "overrides": {
             "type": "object"
           },
+          "emailRouting": {
+            "type": "object",
+            "description": "Forward an address of an account zone to mailboxes (Cloudflare Email Routing): { contact@example.com: me@gmail.com }.",
+            "propertyNames": {
+              "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+            },
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+                },
+                {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+                  }
+                }
+              ]
+            }
+          },
           "deploy": {
             "enum": [
               "auto",

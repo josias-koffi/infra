@@ -61,6 +61,10 @@ run "records_created_in_the_zone" {
     condition     = output.mail_domains["mail.shop.example.com"].id == "dom-1" && output.mail_domains["mail.shop.example.com"].region == "eu-west-1"
     error_message = "apps/env reads the domain id; EU region by default"
   }
+  assert {
+    condition     = jsonencode(output.email_routing_zones) == jsonencode(["example.com", "shop.example.com"])
+    error_message = "Email Routing on in every zone with no mail setup of its own"
+  }
 }
 
 run "records_held_elsewhere_are_left_alone" {
@@ -76,5 +80,9 @@ run "records_held_elsewhere_are_left_alone" {
   assert {
     condition     = length(output.foreign_mail_records) == 4
     error_message = "records left alone are listed"
+  }
+  assert {
+    condition     = length(output.email_routing_zones) == 0 && length(output.email_routing_skipped) == 2
+    error_message = "a zone whose apex already receives mail elsewhere keeps its setup"
   }
 }
