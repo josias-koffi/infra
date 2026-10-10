@@ -5,7 +5,10 @@ name: sample
 server: vps20
 mode: services
 
-secrets: [DB_PASSWORD, CACHE_PASSWORD, SESSION_SECRET]   # <KEY>_PASSWORD per database/cache
+# Only what a human must give goes in `secrets`; infra generates the rest.
+secrets: [ADMIN_EMAIL]
+generate: [SESSION_SECRET]            # created once per environment, kept in its state
+# Database and cache passwords (DB_PASSWORD, CACHE_PASSWORD) are generated too.
 
 apps:
   web:
@@ -14,12 +17,12 @@ apps:
     domain: web
     uses: [api]                       # API_URL=https://<api domain>
     resources: { cpus: 0.5, memory: 512m }
-    secrets: [SESSION_SECRET]         # this app only sees these secrets
+    secrets: [SESSION_SECRET]         # this app only sees these secrets (typed or generated)
   api:
     image: ghcr.io/josias-koffi/sample-api
     port: 8080
     domain: api
-    uses: [db, cache]                 # DATABASE_URL, REDIS_URL, …
+    uses: [db, cache, files, mail]    # DATABASE_URL, REDIS_URL, S3_*, RESEND_API_KEY + SMTP_*
     volumes: { uploads: /app/uploads } # <volumePrefix>_uploads, backed up daily
     resources: { cpus: 1, memory: 1g }
 workers:
@@ -35,11 +38,17 @@ databases:
 caches:
   cache: { type: redis, version: 7-alpine }
 
+buckets:
+  files: {}                           # R2 bucket sample-<env>-files, EU jurisdiction, copied nightly
+mail: {}                              # Resend key limited to the zone of the env's first domain
+
 environments:
   production:
     branch: main
     deploy: manual                    # a push on main never deploys: run the workflow by hand
     domains: { web: sample.example.com, api: sample-api.example.com }
+    emailRouting:
+      contact@example.com: owner@example.net   # Cloudflare Email Routing
   staging:
     branch: develop                   # deploy: auto (default): every push on develop deploys
     domains: { web: sample-staging.example.com, api: sample-api-staging.example.com }

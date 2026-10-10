@@ -118,11 +118,11 @@ run "sample_services" {
   }
 
   assert {
-    condition     = strcontains(output.rendered.app_env.api, "DATABASE_URL=postgresql://sample:s3cr3t-db_password@sample-db-x1y2z3:5432/sample")
+    condition     = strcontains(output.rendered.app_env.api, "DATABASE_URL=postgresql://sample:generated-pw@sample-db-x1y2z3:5432/sample")
     error_message = "api must receive DATABASE_URL"
   }
   assert {
-    condition     = strcontains(output.rendered.app_env.api, "REDIS_URL=redis://default:s3cr3t-cache_password@sample-cache-x1y2z3:6379")
+    condition     = strcontains(output.rendered.app_env.api, "REDIS_URL=redis://default:generated-pw@sample-cache-x1y2z3:6379")
     error_message = "api must receive REDIS_URL"
   }
   assert {

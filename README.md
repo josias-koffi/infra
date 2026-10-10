@@ -87,10 +87,12 @@ L'index complet est dans [`docs/`](docs/README.md).
 ```
 ansible/                 serveurs : sécurisation, Docker, Dokploy, purge
 platform/                l'instance Dokploy : réglages, sauvegardes, registre, serveurs
-apps/project, apps/env   roots OpenTofu lancés pour chaque app (projet, puis un environnement)
-modules/dokploy-app      manifest → services, domaines, montages, sauvegardes (tests avec provider simulé)
-schema/, scripts/        contrat du manifest, validateur, pipeline de déploiement
-.github/workflows/       deploy.yml (réutilisable par les apps), platform, purge-env, housekeeping
+apps/project, apps/env   roots OpenTofu lancés pour chaque app (projet, puis un environnement ; add-ons buckets/mail, DNS, Email Routing)
+zones/                   ce qui appartient à un domaine : domaines d'envoi Resend, activation d'Email Routing
+modules/dokploy-app      manifest → services, domaines, montages, sauvegardes, secrets générés (tests avec provider simulé)
+schema/, scripts/        contrat du manifest, validateur, pipeline de déploiement, vérification des sauvegardes
+.github/workflows/       deploy-app (le déploiement, ici), dispatch-deploy + resolve (réutilisables par les apps),
+                         platform, zones, backup-verify, bucket-backup, purge-env, housekeeping
 templates/               workflow à copier dans le repo d'une app
 examples/                manifests de référence
 docs/                    documentation
@@ -100,8 +102,8 @@ docs/                    documentation
 
 Dokploy · Docker Swarm · Traefik · OpenTofu (provider
 [`vanillauys/dokploy`](https://registry.terraform.io/providers/vanillauys/dokploy))
-· Ansible · GitHub Actions · Cloudflare (DNS, R2)
+· Ansible · GitHub Actions · Cloudflare (DNS de toutes les zones, R2, Email Routing) · Resend
 
 Testé avec Dokploy v0.30.6 sur Ubuntu 24.04. `make test` valide les
-manifests, lance les tests du module (provider simulé) et valide tous les
-roots ; la CI le rejoue sur chaque PR.
+manifests, lance les tests du module, d'`apps/env` et de `zones/` (providers
+simulés) et valide tous les roots ; la CI le rejoue sur chaque PR.

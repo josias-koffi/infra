@@ -30,8 +30,13 @@ la prod. `apps/env` lit `platform` (destinations, serveurs) et `apps/project`
 (ID de l'environnement) en lecture seule, via `terraform_remote_state`.
 
 **Le repo de l'app ne contient que son manifest.** Le moteur (roots, module,
-script, schéma) vit ici, et le workflow réutilisable le récupère à chaque
-déploiement.
+script, schéma) et tous les accès (Dokploy, R2, Cloudflare, Resend) vivent
+ici : le déploiement tourne dans ce repo (`deploy-app.yml`), l'app ne fait
+que le déclencher avec `INFRA_DEPLOY_TOKEN`.
+
+| Ressource | Root | State |
+|---|---|---|
+| Domaines d'envoi Resend, activation d'Email Routing par zone | `zones` | `zones/zones.tfstate` |
 
 ## Un déploiement, pas à pas
 
@@ -39,15 +44,18 @@ déploiement.
 push / run ─▶ resolve.yml (réutilisable) : manifest → déployer ? où ? quel tag ?
            │     (environments.<env>.branch, deploy: auto|manual)
            ├▶ build des images (repo de l'app, tag = SHA court), si demandé
-           └▶ deploy.yml (réutilisable, ce repo)
-                  1. resolve      : environnement reçu
-                  2. checkout     : repo de l'app + ce repo
-                  3. validate     : schéma + cohérence
-                  4. apps/project : projet + environnements
-                  5. apps/env     : plan  ── garde-fou : refuse toute suppression
-                                              de base / cache / compose / montage
-                  6.              : apply
-                  7. smoke test   : domaines, puis healthchecks en 2xx
+           └▶ dispatch-deploy.yml (réutilisable) ─▶ deploy-app.yml (ce repo, ses secrets)
+                  1. resolve      : environnement reçu, commit sur la branche de l'env
+                  2. checkout     : repo de l'app (au commit) + ce repo
+                  3. validate     : schéma + cohérence + noms réservés
+                  4. DNS          : zone de chaque domaine, enregistrements étrangers refusés
+                  5. apps/project : projet + environnements
+                  6. apps/env     : plan  ── garde-fou : refuse toute suppression
+                                              de base / cache / compose / montage / bucket,
+                                              et tout changement de secret verrouillé
+                  7.              : apply (secrets générés, bucket R2, clé Resend, règles mail)
+                  8. smoke test   : domaines, puis healthchecks en 2xx
+              le run de l'app suit celui d'infra et prend son statut
 ```
 
 ## Conventions de nommage

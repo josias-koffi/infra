@@ -70,7 +70,7 @@ resource "dokploy_compose" "this" {
     local.base_env_lines,
     [for k in local.env_secret_names : "${k}=${local.secret_values[k]}"],
     # A compose has no `uses`: it receives every add-on.
-    flatten([for a in local.addon_names : [for k in sort(keys(var.addons[a])) : "${k}=${var.addons[a][k]}"]]),
+    flatten([for a in local.addon_names : [for k in sort(keys(try(var.addons[a], {}))) : "${k}=${var.addons[a][k]}"]]),
   ))
 
   lifecycle {

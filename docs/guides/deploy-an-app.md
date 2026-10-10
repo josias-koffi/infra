@@ -14,7 +14,8 @@ Pars de [`examples/sample-services/.deploy/manifest.yaml`](../../examples/sample
 apiVersion: deploy/v1
 name: sample                     # = nom du projet Dokploy
 server: vps20                    # clé de platform/nodes.yaml
-secrets: [DB_PASSWORD, CACHE_PASSWORD, SESSION_SECRET]
+secrets: [ADMIN_EMAIL]           # seulement ce qu'un humain doit fournir
+generate: [SESSION_SECRET]       # créé par infra ; DB_PASSWORD et CACHE_PASSWORD aussi
 
 apps:
   web: { image: ghcr.io/me/sample-web, port: 3000, domain: web, uses: [api], resources: { cpus: 0.5, memory: 512m } }
@@ -23,7 +24,7 @@ apps:
     port: 8080
     domain: api
     healthcheck: /health         # vérifié par le smoke test
-    uses: [db, cache]            # injecte DATABASE_URL, REDIS_URL…
+    uses: [db, cache, files, mail]   # injecte DATABASE_URL, REDIS_URL, S3_*, RESEND_API_KEY…
     volumes: { uploads: /app/uploads }
 workers:
   jobs: { image: ghcr.io/me/sample-api, command: node, args: [dist/worker.js], uses: [db, cache] }
@@ -31,6 +32,9 @@ databases:
   db: { type: postgres, version: 16-alpine, database: sample, user: sample }
 caches:
   cache: { type: redis }
+buckets:
+  files: {}                      # bucket R2 (UE) et sa clé, créés par infra
+mail: {}                         # clé Resend limitée au domaine
 
 environments:
   production: { branch: main,    domains: { web: sample.example.com, api: api.example.com } }
@@ -269,3 +273,8 @@ Rotation volontaire, depuis ton poste :
 | Un service de plus | une entrée sous `apps:`, `workers:`, `databases:` ou `caches:` |
 | Retirer un service sans état | supprimer l'entrée |
 | Retirer une base ou un environnement | le déploiement refuse ; passe par la [purge](purge.md) |
+| Un secret qu'aucun humain n'a besoin de connaître | `generate: [NOM]` |
+| Du stockage objet | `buckets: { medias: {} }` puis `uses: [medias]` |
+| Envoyer des mails | `mail: {}` puis `uses: [mail]` ; le domaine d'envoi, une fois, dans `zones/zones.yaml` |
+| Faire suivre `contact@<domaine>` vers une boîte | `environments.<env>.emailRouting: { contact@domaine.fr: moi@gmail.com }` |
+| Un nouveau domaine | l'ajouter au compte Cloudflare, puis l'écrire dans `environments.<env>.domains` |
