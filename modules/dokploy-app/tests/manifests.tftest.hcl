@@ -128,3 +128,25 @@ run "sample_services" {
     error_message = "database and cache passwords are locked, SESSION_SECRET is not"
   }
 }
+
+run "shared_domain_paths" {
+  command = apply
+  module { source = "./tests/harness" }
+  variables {
+    manifest_path = "./tests/fixtures/shared-domain.yaml"
+    environment   = "staging"
+  }
+
+  assert {
+    condition     = jsonencode(sort(keys(nonsensitive(output.rendered.domains)))) == jsonencode(["api:site:/api/auth", "api:site:/trpc", "web:site"])
+    error_message = "one rule per path for api, the bare domain for web"
+  }
+  assert {
+    condition     = strcontains(output.rendered.app_env.web, "API_INTERNAL_URL=http://shared-staging-api:3001") && strcontains(output.rendered.app_env.web, "API_URL=https://shared-staging.example.com")
+    error_message = "web reaches api through its overlay alias, and still knows its public URL"
+  }
+  assert {
+    condition     = jsonencode(nonsensitive(output.rendered.aliases)) == jsonencode({ api = ["shared-staging-api"], web = null })
+    error_message = "only the used component gets the alias"
+  }
+}

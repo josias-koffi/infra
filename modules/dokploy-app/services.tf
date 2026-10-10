@@ -144,14 +144,24 @@ locals {
           "${try(local.caches[u].envPrefix, "REDIS")}_PORT=6379",
           "${try(local.caches[u].envPrefix, "REDIS")}_PASSWORD=${local.cache_password[u]}",
           "${try(local.caches[u].envPrefix, "REDIS")}_URL=redis://default:${local.cache_password[u]}@${dokploy_redis.cache[u].app_name}:6379",
-          ] : contains(keys(local.components), u) ? [
-          # App to app goes through the public domain: an app_name is only
-          # known after its own create, and a reference between two members
-          # of the same resource block would be a cycle.
-          "${upper(replace(u, "-", "_"))}_URL=https://${local.domains[local.components[u].domain]}",
-        ] : ["# unknown uses entry: ${u}"]
+          ] : contains(keys(local.components), u) ? concat(
+          # The public domain, for what leaves the server (links, redirects).
+          [for d in [try(local.components[u].domain, null)] : "${upper(replace(u, "-", "_"))}_URL=https://${local.domains[d]}" if d != null],
+          # The overlay network, for server-side calls. Not the app_name: it is
+          # only known after its own create, and a reference between two
+          # members of the same resource block would be a cycle. The alias is
+          # set below on every component that another one uses.
+          [for p in [try(local.components[u].port, null)] : "${upper(replace(u, "-", "_"))}_INTERNAL_URL=http://${local.internal_aliases[u]}:${p}" if p != null],
+        ) : ["# unknown uses entry: ${u}"]
       )
     ])
+  }
+
+  # Stable name on dokploy-network of each component another one `uses`:
+  # <app>-<env>-<component>, unique per environment like the app_name prefix.
+  internal_aliases = {
+    for name in distinct(flatten([for c in local.components : try(c.uses, [])])) :
+    name => "${var.app}-${var.environment}-${name}" if contains(keys(local.components), name)
   }
 
   # Sizes from the manifest ("512m", "1g", 0.5 CPU) to Dokploy whole numbers.
@@ -185,6 +195,12 @@ resource "dokploy_application" "svc" {
   }
   registry_id = try(var.registry_ids[each.value.registry], null)
 
+  # Only on components that another one uses: the block replaces every swarm
+  # column, so the others keep Dokploy's defaults untouched.
+  swarm = contains(keys(local.internal_aliases), each.key) ? {
+    network = [{ target = "dokploy-network", aliases = [local.internal_aliases[each.key]] }]
+  } : null
+
   command  = try(each.value.command, null)
   args     = try(each.value.args, null)
   replicas = try(each.value.replicas, null)
@@ -206,11 +222,14 @@ resource "dokploy_application" "svc" {
 locals {
   app_domains = merge([
     for name, c in local.components : {
-      for d in try(c.domains, try([c.domain], [])) : "${name}:${d}" => {
+      # One Traefik rule per domain and path: `paths` serves a component under
+      # several prefixes of a domain it shares with another app.
+      for pair in setproduct(try(c.domains, try([c.domain], [])), try(c.paths, [try(c.path, "")])) :
+      (pair[1] == "" ? "${name}:${pair[0]}" : "${name}:${pair[0]}:${pair[1]}") => {
         app  = name
-        host = local.domains[d]
+        host = local.domains[pair[0]]
         port = try(c.port, 80)
-        path = try(c.path, null)
+        path = pair[1] == "" ? null : pair[1]
       }
     } if c.kind == "app"
   ]...)

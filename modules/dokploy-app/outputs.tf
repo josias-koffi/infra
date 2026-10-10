@@ -31,6 +31,7 @@ output "rendered" {
       volumes = { for k, b in dokploy_volume_backup.this : k => { volume = b.volume_name, prefix = b.prefix } }
     }
     locked_secrets = local.locked_secret_names
+    aliases        = { for k, a in dokploy_application.svc : k => try(a.swarm.network[0].aliases, null) }
     domains = merge(
       { for k, d in dokploy_domain.compose : k => "${d.host} -> ${d.service_name}:${d.port}" },
       { for k, d in dokploy_domain.app : k => "${d.host} -> :${d.port}" },

@@ -424,6 +424,16 @@
         "path": {
           "type": "string"
         },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^/"
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "Several prefixes of the domain(s), one Traefik rule each — instead of `path`."
+        },
         "healthcheck": {
           "type": "string"
         },
@@ -461,6 +471,12 @@
         "resources": {
           "$ref": "#/$defs/resources"
         }
+      },
+      "not": {
+        "required": [
+          "path",
+          "paths"
+        ]
       }
     }
   }

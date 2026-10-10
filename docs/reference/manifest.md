@@ -39,6 +39,7 @@ Complétion dans l'éditeur, en première ligne :
 | `port` | port du conteneur derrière le domaine (apps) |
 | `domain` / `domains` | clé(s) de `environments.<env>.domains` (apps uniquement) |
 | `path` | chemin du domaine |
+| `paths` | plusieurs préfixes du domaine, une règle Traefik chacun (à la place de `path`) : une API servie sous `/trpc` et `/api/auth` du domaine du site. Le préfixe est transmis tel quel au conteneur |
 | `healthcheck` | chemin qui doit renvoyer 2xx au smoke test |
 | `command`, `args` | commande du conteneur |
 | `replicas` | nombre de réplicas |
@@ -54,7 +55,7 @@ Complétion dans l'éditeur, en première ligne :
 |---|---|
 | une base (`databases.db`) | `DATABASE_HOST`, `_PORT`, `_NAME`, `_USER`, `_PASSWORD`, `_URL` (préfixe modifiable avec `envPrefix`) |
 | un cache (`caches.cache`) | `REDIS_HOST`, `_PORT`, `_PASSWORD`, `_URL` |
-| une autre app | `<APP>_URL=https://<son domaine>` : un appel d'app à app passe par le domaine public |
+| une autre app ou un worker | `<APP>_URL=https://<son domaine>` (s'il en a un) et `<APP>_INTERNAL_URL=http://<app>-<env>-<composant>:<port>` (s'il a un `port`) : alias stable sur `dokploy-network`, pour les appels côté serveur sans repasser par Traefik ni exposer de route |
 
 L'hôte d'une base est son `app_name` Dokploy, unique grâce à un suffixe
 aléatoire : le staging et la prod ne se mélangent jamais sur le réseau

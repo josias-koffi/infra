@@ -28,12 +28,14 @@ def semantic_errors(m):
         for u in c.get("uses", []):
             if u not in known:
                 errs.append(f"{name}.uses: unknown component '{u}'")
-            elif u in comps and not comps[u].get("domain"):
-                errs.append(f"{name}.uses: '{u}' has no domain (app-to-app goes through its public domain)")
+            elif u in comps and not comps[u].get("domain") and not comps[u].get("port"):
+                errs.append(f"{name}.uses: '{u}' has neither a domain nor a port to reach it on")
         for d in [c["domain"]] if c.get("domain") else c.get("domains", []):
             for env, spec in m["environments"].items():
                 if d not in spec.get("domains", {}):
                     errs.append(f"{name}.domain '{d}' missing in environments.{env}.domains")
+        if c.get("paths") and not (c.get("domain") or c.get("domains")):
+            errs.append(f"{name}.paths: needs a domain")
         for s in c.get("secrets", []):
             if s not in secrets:
                 errs.append(f"{name}.secrets: '{s}' not declared in secrets")

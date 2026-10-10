@@ -25,6 +25,8 @@ jobs:
           - { owner: josias-koffi, package: jobspark-api }
           - { owner: josias-koffi, package: jobspark-puppeteer }
           - { owner: josias-koffi, package: jemima-portfolio }
+          - { owner: josias-koffi, package: resto-api }
+          - { owner: josias-koffi, package: resto-web }
     steps:
       - uses: actions/delete-package-versions@v5
         with:

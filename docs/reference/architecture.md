@@ -85,7 +85,8 @@ push / run ─▶ resolve.yml (réutilisable) : manifest → déployer ? où ? q
 
 - Pas de réseau entre serveurs : une app et toutes ses dépendances vivent sur
   un seul serveur.
-- Un appel d'app à app passe par le domaine public (le nom interne d'un
-  service n'est connu qu'après sa création).
+- Le nom interne d'un service (`app_name`) n'est connu qu'après sa création :
+  un appel d'app à app passe par un alias réseau posé par l'infra
+  (`<APP>_INTERNAL_URL`, voir le manifest), jamais par l'`app_name`.
 - Les preview deployments par PR ne sont pas encore modélisés.
 - Testé avec Dokploy v0.30.6 et le provider `vanillauys/dokploy` 1.9.
