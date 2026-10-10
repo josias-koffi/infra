@@ -38,6 +38,18 @@ variable "r2_backup_credentials" {
   sensitive   = true
 }
 
+variable "eu_backup_buckets" {
+  type        = bool
+  description = "Create the backup buckets here, in the EU jurisdiction (GDPR), with their own tokens, and send the next dumps there (destinations.tf). Repo variable EU_BACKUP_BUCKETS."
+  default     = false
+}
+
+variable "cf_account_id" {
+  type        = string
+  description = "Cloudflare account of the R2 buckets (CF_ACCOUNT_ID); needed with eu_backup_buckets."
+  default     = ""
+}
+
 variable "r2_backup_credentials_version" {
   type        = number
   description = "Bump to push rotated r2_backup_credentials to Dokploy."

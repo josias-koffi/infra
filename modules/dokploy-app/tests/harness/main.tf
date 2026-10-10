@@ -57,3 +57,7 @@ output "compose_file_b64" {
   description = "Rendered compose, base64 (tests compare it with the source)."
   value       = base64encode(nonsensitive(module.app.rendered.compose_file == null ? "" : module.app.rendered.compose_file))
 }
+
+output "backup_inventory" {
+  value = module.app.backup_inventory
+}

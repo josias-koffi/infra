@@ -38,3 +38,37 @@ output "rendered" {
     )
   }
 }
+
+output "backup_inventory" {
+  description = "What is backed up and how to test it (scripts/backups.py verify reads it from the state)."
+  value = {
+    databases = merge(
+      {
+        for k, d in local.native_db_backups : k => {
+          type         = d.type
+          image        = "${d.type}:${try(d.version, local.default_db_versions[d.type])}"
+          database     = try(d.database, var.app)
+          user         = d.user
+          prefix       = dokploy_backup.native[k].prefix
+          cron         = local.backup_db_cron
+          verify_query = try(d.verify.query, null)
+        }
+      },
+      {
+        # The dump comes from the compose's own container: its exact version
+        # is unknown here, a recent server restores older dumps.
+        for k, d in local.compose_db_backups : k => {
+          type         = d.type
+          image        = "${d.type}:${try(d.version, local.latest_db_versions[d.type])}"
+          database     = d.database
+          user         = d.user
+          prefix       = dokploy_backup.compose[k].prefix
+          cron         = local.backup_db_cron
+          verify_query = try(d.verify.query, null)
+        }
+      },
+    )
+    volumes = { for k, b in dokploy_volume_backup.this : k => { volume = b.volume_name, prefix = b.prefix, cron = local.backup_vol_cron } }
+    keep    = local.backup_keep
+  }
+}

@@ -8,3 +8,4 @@ ansible/inventory/hosts
 tfplan
 destroy.tfplan
 .idea/
+__pycache__/

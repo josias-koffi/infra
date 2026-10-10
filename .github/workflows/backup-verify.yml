@@ -1,0 +1,73 @@
+# Weekly proof that the backups restore (scripts/backups.py verify): freshness
+# of every dump, archive and bucket copy, and a real restore of each database
+# into a throw-away container. A failure opens an issue (label `backup`); the
+# next green run closes it.
+name: Backup verify
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Only this app (empty = all)
+        required: false
+      environment:
+        description: Only this environment (empty = all)
+        required: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  verify:
+    if: vars.PLATFORM_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      AWS_ENDPOINT_URL_S3: ${{ secrets.R2_ENDPOINT }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BACKUP_BUCKET_PROD: ${{ vars.R2_BACKUP_BUCKET_PROD }}
+      R2_BACKUP_BUCKET_STAGING: ${{ vars.R2_BACKUP_BUCKET_STAGING }}
+      R2_BACKUP_PROD_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_PROD_ACCESS_KEY_ID }}
+      R2_BACKUP_PROD_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_PROD_SECRET_ACCESS_KEY }}
+      R2_BACKUP_STAGING_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_STAGING_ACCESS_KEY_ID }}
+      R2_BACKUP_STAGING_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_STAGING_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify
+        id: verify
+        run: |
+          args=()
+          [ -n "${{ inputs.app }}" ] && args+=(--app "${{ inputs.app }}")
+          [ -n "${{ inputs.environment }}" ] && args+=(--env "${{ inputs.environment }}")
+          scripts/backups.py verify "${args[@]}" --report report.json --summary "$GITHUB_STEP_SUMMARY"
+      - name: Open or update the backup issue
+        if: failure() && steps.verify.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          body=$(python3 - <<'PY'
+          import json, os
+          rows = json.load(open("report.json"))
+          print("Backups that failed their weekly check:\n")
+          for r in rows:
+              print(f"- **{r['app']}/{r['env']}** {r['kind']} `{r['name']}`: {r['detail']}")
+          print(f"\nRun: {os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}")
+          PY
+          )
+          gh label create backup --color B60205 --description "Backup verification" 2>/dev/null || true
+          n=$(gh issue list --label backup --state open --json number --jq '.[0].number // empty')
+          if [ -n "$n" ]; then gh issue comment "$n" --body "$body"
+          else gh issue create --title "Backups: verification failed" --label backup --body "$body"; fi
+      - name: Close the backup issue
+        if: success() && inputs.app == '' && inputs.environment == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in $(gh issue list --label backup --state open --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "All backups verified: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          done

@@ -76,6 +76,8 @@ def semantic_errors(m):
         if s not in secrets:
             errs.append(f"lockedSecrets: '{s}' not declared in secrets or generate")
     for k, b in buckets.items():
+        if b.get("backup") is False and not b.get("backupReason"):
+            errs.append(f"buckets.{k}: backup: false needs a backupReason")
         if b.get("name") and len(m["environments"]) > 1:
             errs.append(f"buckets.{k}.name: one fixed name for {len(m['environments'])} environments would share the bucket — "
                         "drop it (default <name>-<env>-<key>) or set it in environments.<env>.overrides")

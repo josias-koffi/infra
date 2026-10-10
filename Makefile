@@ -11,6 +11,7 @@ export AWS_SECRET_ACCESS_KEY=$(R2_SECRET_ACCESS_KEY)
 export CLOUDFLARE_API_TOKEN=$(CF_API_TOKEN)
 export TF_VAR_cf_account_id=$(CF_ACCOUNT_ID)
 export TF_VAR_resend_api_key=$(RESEND_ADMIN_API_KEY)
+export TF_VAR_eu_backup_buckets=$(or $(EU_BACKUP_BUCKETS),false)
 export TF_VAR_dokploy_endpoint=$(DOKPLOY_URL)
 export TF_VAR_state_bucket=$(TF_STATE_BUCKET)
 export TF_VAR_r2_endpoint=$(R2_ENDPOINT)
@@ -21,7 +22,7 @@ export TF_VAR_ghcr_token=$(GHCR_TOKEN)
 export TF_VAR_node_ssh_public_key=$(NODE_SSH_PUBLIC_KEY)
 export TF_VAR_node_ssh_private_key=$(NODE_SSH_PRIVATE_KEY)
 
-.PHONY: help setup-manager add-node node-key platform-plan platform-apply zones-plan zones-apply app-plan app-deploy test
+.PHONY: help setup-manager add-node node-key platform-plan platform-apply zones-plan zones-apply app-plan app-deploy verify-backups test
 
 help: ## List commands
 	@grep -hE '^[a-z-]+:.*## ' Makefile | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -57,6 +58,9 @@ app-plan: ## Plan one env of an app. MANIFEST=… ENV=staging [TAG=…]
 app-deploy: ## Deploy one env of an app from a workstation (CI does it on push). MANIFEST=… ENV=… TAG=…
 	@test -n "$(MANIFEST)" -a -n "$(ENV)" -a -n "$(TAG)" || (echo "MANIFEST=, ENV= and TAG= are required" && exit 1)
 	@scripts/deploy-app.sh $(MANIFEST) $(ENV) $(TAG) apply
+
+verify-backups: ## Freshness and real restore of the backups (scripts/backups.py). [APP=…] [ENV=…] [FAST=1: freshness only]
+	@scripts/backups.py verify $(if $(APP),--app $(APP),) $(if $(ENV),--env $(ENV),) $(if $(FAST),--no-restore,)
 
 test: ## Validate manifests, run the module tests, validate every root
 	@scripts/validate-manifest.py examples/*/.deploy/manifest.yaml modules/dokploy-app/tests/fixtures/*.yaml modules/dokploy-app/tests/fixtures/*/.deploy/manifest.yaml apps/env/tests/fixtures/*/.deploy/manifest.yaml

@@ -17,6 +17,10 @@ terraform {
       source  = "vanillauys/dokploy"
       version = "~> 1.9"
     }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.26"
+    }
   }
 
   # Bucket given at init (TF_STATE_BUCKET); endpoint and credentials from
@@ -38,6 +42,10 @@ terraform {
 provider "dokploy" {
   endpoint = var.dokploy_endpoint
   # api_key comes from DOKPLOY_API_KEY, never from a file.
+}
+
+provider "cloudflare" {
+  # CLOUDFLARE_API_TOKEN from the environment; used only with eu_backup_buckets.
 }
 
 locals {

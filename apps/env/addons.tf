@@ -146,3 +146,19 @@ resource "restapi_object" "mail_key" {
     }
   }
 }
+
+# What the backup jobs read from this state (scripts/backups.py): databases and
+# volumes (Dokploy backs them up), buckets (copied by bucket-backup.yml).
+resource "terraform_data" "backup_inventory" {
+  input = merge(module.app.backup_inventory, {
+    environment = var.environment == "production" ? "production" : "staging"
+    buckets = {
+      for k, b in local.buckets : k => {
+        name         = cloudflare_r2_bucket.this[k].name
+        jurisdiction = b.jurisdiction
+        endpoint     = local.r2_endpoint[k]
+        prefix       = "buckets/${local.app}/${var.environment}/${k}/"
+      } if try(local.spec.buckets[k].backup, true)
+    }
+  })
+}

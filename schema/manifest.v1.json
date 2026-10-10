@@ -119,6 +119,16 @@
             "type": "string",
             "pattern": "^[A-Z][A-Z0-9_]*$",
             "default": "S3"
+          },
+          "backup": {
+            "type": "boolean",
+            "default": true,
+            "description": "Daily copy to the environment's backup bucket, with dated history (scripts/backups.py sync-buckets)."
+          },
+          "backupReason": {
+            "type": "string",
+            "minLength": 10,
+            "description": "Required with backup: false."
           }
         }
       }
@@ -262,6 +272,17 @@
           },
           "resources": {
             "$ref": "#/$defs/resources"
+          },
+          "verify": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Weekly restore test of the last dump (scripts/backups.py verify).",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "SQL run on the restored dump; passes when it returns a number above 0 (default: the number of user tables)."
+              }
+            }
           }
         }
       }

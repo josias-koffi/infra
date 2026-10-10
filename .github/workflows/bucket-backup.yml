@@ -1,0 +1,37 @@
+# Daily copy of every bucket add-on into its environment's backup bucket
+# (scripts/backups.py sync-buckets): current/ mirrors the bucket, history/<date>/
+# keeps what was replaced or deleted for `keep` days. backup-verify.yml checks it.
+name: Bucket backup
+
+on:
+  schedule:
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bucket-backup
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: vars.PLATFORM_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      AWS_ENDPOINT_URL_S3: ${{ secrets.R2_ENDPOINT }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BACKUP_BUCKET_PROD: ${{ vars.R2_BACKUP_BUCKET_PROD }}
+      R2_BACKUP_BUCKET_STAGING: ${{ vars.R2_BACKUP_BUCKET_STAGING }}
+      R2_BACKUP_PROD_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_PROD_ACCESS_KEY_ID }}
+      R2_BACKUP_PROD_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_PROD_SECRET_ACCESS_KEY }}
+      R2_BACKUP_STAGING_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_STAGING_ACCESS_KEY_ID }}
+      R2_BACKUP_STAGING_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_STAGING_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq rclone
+      - run: scripts/backups.py sync-buckets

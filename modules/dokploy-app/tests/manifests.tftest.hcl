@@ -103,6 +103,10 @@ run "jemima_production_compose" {
     condition     = jsonencode(nonsensitive(output.rendered.locked_secrets)) == jsonencode(["POSTGRES_PASSWORD"])
     error_message = "compose database password must be locked"
   }
+  assert {
+    condition     = output.backup_inventory.databases.postgres.image == "postgres:18-alpine" && output.backup_inventory.volumes["minio_data"].prefix != ""
+    error_message = "a compose database is restored with a recent server; volumes are listed"
+  }
 }
 
 run "sample_services" {
@@ -132,6 +136,10 @@ run "sample_services" {
   assert {
     condition     = jsonencode(nonsensitive(output.rendered.locked_secrets)) == jsonencode(["CACHE_PASSWORD", "DB_PASSWORD"])
     error_message = "database and cache passwords are locked, SESSION_SECRET is not"
+  }
+  assert {
+    condition     = output.backup_inventory.databases.db.image == "postgres:16-alpine" && output.backup_inventory.databases.db.prefix == "db/sample/production/db/" && output.backup_inventory.keep == 35
+    error_message = "the restore test knows the image, the prefix and the retention of each dump"
   }
 }
 

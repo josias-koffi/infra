@@ -59,4 +59,9 @@ locals {
   # --- Resource helpers ---------------------------------------------------------
   # Dokploy wants whole numbers: bytes for memory, nano-CPUs for CPU.
   mem_units = { b = 1, k = 1024, m = 1048576, g = 1073741824 }
+
+  # Image tags when the manifest sets no version (services.tf), and the ones
+  # the restore test uses for a compose database.
+  default_db_versions = { postgres = "16-alpine", mysql = "8", mariadb = "11", mongo = "7" }
+  latest_db_versions  = { postgres = "18-alpine", mysql = "8", mariadb = "11", mongo = "8" }
 }

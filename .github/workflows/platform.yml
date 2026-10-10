@@ -68,6 +68,9 @@ jobs:
       TF_VAR_ghcr_token: ${{ secrets.GHCR_TOKEN }}
       TF_VAR_node_ssh_public_key: ${{ vars.NODE_SSH_PUBLIC_KEY }}
       TF_VAR_node_ssh_private_key: ${{ secrets.NODE_SSH_PRIVATE_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      TF_VAR_cf_account_id: ${{ secrets.CF_ACCOUNT_ID }}
+      TF_VAR_eu_backup_buckets: ${{ vars.EU_BACKUP_BUCKETS == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - uses: opentofu/setup-opentofu@v1

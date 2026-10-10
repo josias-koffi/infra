@@ -6,6 +6,7 @@
 |---|---|---|---|
 | Chaque base (`databases:`, ou base d'un compose) | `<bucket env>/db/<app>/<env>/…` | tous les jours à 3h | 35 jours en prod, 7 en staging |
 | Chaque volume nommé d'une app (`volumes:`, ou `compose.backupVolumes`) | `<bucket env>/volumes/<app>/<env>/<volume>/` | tous les jours à 4h | idem |
+| Chaque bucket (`buckets:`) | `<bucket env>/buckets/<app>/<env>/<clé>/current/` (+ `history/<date>/`) | tous les jours à 3h41 (`bucket-backup.yml`) | ce qui est remplacé ou supprimé reste `keep` jours |
 | Dokploy lui-même (sa base et `/etc/dokploy`) | `<bucket prod>/dokploy/` | tous les jours à 2h30 | 14 copies |
 
 Le bucket dépend de l'environnement : `R2_BACKUP_BUCKET_PROD` pour la
@@ -26,8 +27,51 @@ backups:
 Désactiver les sauvegardes demande une justification, que le schéma vérifie :
 `backups: { enabled: false, reason: "données recalculables depuis X" }`.
 
+Un bucket se retire de la copie avec `buckets.<clé>: { backup: false,
+backupReason: "…" }`.
+
 Dokploy envoie les échecs de sauvegarde dans ses notifications (à configurer
 dans le panel si tu veux des alertes).
+
+## Sauvegardes vérifiées chaque semaine
+
+Une sauvegarde jamais restaurée n'est pas une sauvegarde. Chaque lundi,
+`backup-verify.yml` (`scripts/backups.py verify`) reprend l'inventaire de
+chaque environnement (gardé dans son state au déploiement) et vérifie :
+
+| Quoi | Contrôle |
+|---|---|
+| base | le dernier dump date de moins de 26 h (cron quotidien), puis il est **restauré** dans un conteneur jetable de la même image ; une requête doit renvoyer un nombre > 0 : le nombre de tables par défaut, ou `databases.<clé>.verify.query` (`select count(*) from orders`) |
+| volume | la dernière archive a moins de 26 h et liste au moins une entrée |
+| bucket | la dernière copie a moins de 26 h et contient autant d'objets que la source |
+
+Un échec ouvre une issue `backup` dans infra (ou la complète) ; le prochain
+passage tout vert la ferme. Mongo : l'archive est lue jusqu'au bout, la
+restauration n'est pas jouée.
+
+À la demande, depuis ton poste :
+
+```bash
+make verify-backups APP=resto ENV=staging     # FAST=1 : fraîcheur seulement, rien n'est téléchargé
+```
+
+Un environnement déployé avant cette vérification n'a pas encore
+d'inventaire : il apparaît comme tel jusqu'à son prochain déploiement.
+
+## Buckets de sauvegarde dans l'UE (RGPD)
+
+Les buckets de sauvegarde d'origine (`R2_BACKUP_BUCKET_*`) sont en juridiction
+*default* avec l'indice de placement WEUR : en pratique en Europe de l'Ouest,
+**sans garantie**. Pour une garantie UE :
+
+1. pose la variable de repo `EU_BACKUP_BUCKETS=true` (et `CF_ACCOUNT_ID`) ;
+2. lance `platform.yml` (ou `EU_BACKUP_BUCKETS=true make platform-apply`).
+
+`platform/` crée alors `<bucket>-eu` en juridiction `eu` avec un token limité à
+chacun, et les destinations Dokploy y envoient les dumps suivants. Les ids de
+destination ne changent pas : aucune app n'a besoin d'être redéployée. Les
+anciens dumps restent dans les anciens buckets jusqu'à la fin de leur
+rétention : restaure depuis là en attendant, puis supprime ces buckets.
 
 ## Restaurer une base
 

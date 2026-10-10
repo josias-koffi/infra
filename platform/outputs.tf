@@ -23,3 +23,14 @@ output "dokploy_node_public_key" {
   description = "Public key to install on remote nodes (dokploy-node role)."
   value       = var.node_ssh_public_key
 }
+
+output "backup_targets" {
+  description = "Bucket and S3 endpoint of each environment's backups (scripts/backups.py)."
+  value       = local.backup_targets
+}
+
+output "backup_credentials" {
+  description = "Credentials of the backup buckets created here (eu_backup_buckets); null otherwise — the .env tokens are used."
+  value       = var.eu_backup_buckets ? local.backup_credentials : null
+  sensitive   = true
+}
