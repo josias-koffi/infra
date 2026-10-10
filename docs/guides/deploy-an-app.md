@@ -45,11 +45,21 @@ Valide-le localement :
 
 Toutes les clés sont décrites dans la [référence du manifest](../reference/manifest.md).
 
-## 2. Le workflow
+## 2. Brancher le repo, une fois
 
-Copie [`templates/app-deploy.yml`](../../templates/app-deploy.yml) dans
-`.github/workflows/deploy.yml`, puis remplace `CHANGE-ME` par le nom de ton
-image (ajoute une étape `build-push` par image s'il y en a plusieurs).
+Depuis infra :
+
+```bash
+scripts/onboard-app.sh <owner>/<app> ../<app>     # chemin du checkout de l'app
+```
+
+Il pose le **seul** secret du repo de l'app, `INFRA_DEPLOY_TOKEN`, crée les
+environnements `<app>-staging` / `<app>-production` dans **infra** et demande
+les secrets qu'un humain doit fournir (`secrets:` / `optionalSecrets:` du
+manifest). Si l'app n'a pas encore de workflow, il copie
+[`templates/app-deploy.yml`](../../templates/app-deploy.yml) dans
+`.github/workflows/deploy.yml` : remplace `CHANGE-ME` par le nom de ton image
+(une étape `build-push` par image).
 
 Ce workflow ne contient **aucune règle**. Il enchaîne trois jobs :
 
@@ -57,7 +67,9 @@ Ce workflow ne contient **aucune règle**. Il enchaîne trois jobs :
    si cet événement déploie, vers quel environnement, et avec quel tag ;
 2. **`build`** construit et pousse l'image, seulement si `resolve` le demande
    (pas de build quand on redéploie un tag existant) ;
-3. **`deploy`** (workflow réutilisable) déploie.
+3. **`deploy`** (`dispatch-deploy.yml`) lance le déploiement **dans le repo
+   infra** (`deploy-app.yml`) et le suit : le run de l'app est vert seulement
+   si le déploiement l'est, avec un lien vers le run d'infra.
 
 Tu peux ajouter tes propres jobs entre `build` et `deploy`, par exemple un
 démarrage de l'image contre une base jetable :
@@ -68,40 +80,49 @@ automatiquement aux images déclarées sans tag explicite. Si l'image est
 privée, déclare `registry: ghcr` sur le composant ; le registre est créé par
 `platform/` quand `GHCR_TOKEN` est renseigné.
 
-## 3. Secrets et variables du repo de l'app
+## 3. Où vivent les accès
 
-*Settings → Secrets and variables → Actions*, au niveau du repo :
+**Aucun accès plateforme dans le repo de l'app.** Dokploy, R2, Cloudflare et
+Resend sont des secrets du repo infra ; le déploiement tourne là.
 
-| Type | Nom | Valeur |
-|---|---|---|
-| Variable | `DOKPLOY_URL` | URL du panel |
-| Variable | `TF_STATE_BUCKET` | bucket R2 des states |
-| Secret | `DOKPLOY_API_KEY` | clé API Dokploy |
-| Secret | `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | token du bucket de state |
-| Secret | `CF_API_TOKEN`, `CF_ACCOUNT_ID` | seulement avec `dns: cloudflare` (le défaut) ; token de compte *Zone → Zone → Read* et *Zone → DNS → Edit* sur toutes les zones |
+| Où | Quoi |
+|---|---|
+| repo de l'app, secret | `INFRA_DEPLOY_TOKEN` : lance un déploiement, ne lit aucun secret |
+| infra, environnement `<app>-<env>` | les secrets saisis par un humain (clé Stripe, email admin…) |
+| infra, secrets du repo | les accès plateforme ([configuration](../reference/configuration.md)) |
 
-Raccourci : `scripts/set-secrets.sh --app <owner>/<app>` pousse ces variables
-et secrets depuis le `.env` d'infra.
+Un manifest ne peut pas réclamer un accès plateforme : le validateur refuse
+ces noms (`CF_API_TOKEN`, `DOKPLOY_API_KEY`…).
 
-*Settings → Environments* : crée `staging` et `production`. Dans **chacun**,
-ajoute les secrets listés par le manifest (`secrets:` et `optionalSecrets:`),
-avec des valeurs différentes par environnement.
+Le déploiement vérifie aussi que le commit demandé est sur la branche de
+l'environnement : un dispatch ne peut pas déployer n'importe quel commit.
 
-Raccourci, depuis le repo de l'app :
+Compléter ou changer les secrets d'un environnement :
 
 ```bash
-<chemin>/infra/scripts/init-app-env.sh            # ou -R owner/app -e staging
+scripts/init-app-env.sh -e staging ../<app>/.deploy/manifest.yaml
 ```
 
-Il crée les environnements du manifest et demande chaque secret manquant :
-Entrée en génère un aléatoire pour les mots de passe, clés et tokens, les
-autres (email, utilisateur) sont à saisir. Il ne réécrit jamais un secret
-déjà posé : relancé, il ne complète que ce qui manque. Chaque base et chaque cache
-attend un secret `<CLÉ>_PASSWORD` (par exemple `DB_PASSWORD`), sauf si
-`passwordSecret` dit autre chose.
+Il ne réécrit jamais un secret déjà posé : relancé, il ne complète que ce qui
+manque.
 
-Astuce : protège l'environnement `production` avec un reviewer obligatoire.
-Chaque déploiement en prod attendra alors une validation.
+Astuce : protège l'environnement `<app>-production` (dans infra) avec un
+reviewer obligatoire. Chaque déploiement en prod attendra alors une
+validation.
+
+### Migrer une app depuis l'ancien `deploy.yml`
+
+L'ancien workflow réutilisable (`deploy.yml`, `secrets: inherit`) reste
+utilisable pendant la transition. Pour passer au déploiement dans infra :
+
+1. `scripts/migrate-app-secrets.py <manifest> <env>` (une fois par
+   environnement) recopie les valeurs en service dans l'environnement infra
+   `<app>-<env>` : GitHub ne remontre jamais un secret, elles sont lues dans le
+   state de l'app. Les secrets introuvables sont listés ;
+2. `scripts/onboard-app.sh <owner>/<app> ../<app>` ;
+3. remplace le job `deploy` du workflow de l'app par celui du template ;
+4. supprime du repo de l'app les secrets `DOKPLOY_API_KEY`, `R2_*`, `CF_*` et
+   ses environnements.
 
 ## 4. Déployer
 
@@ -129,7 +150,7 @@ de branche sur l'environnement `production` et un reviewer obligatoire.
 Mettre en prod ce qui tourne en staging : merge `develop` → `main`, puis
 *Run workflow* sur `main` avec `image_tag` = le tag du staging.
 
-Déroulement du job `deploy` (`scripts/deploy-app.sh`) :
+Déroulement du déploiement (`deploy-app.yml` dans infra, `scripts/deploy-app.sh`) :
 
 1. validation du manifest (schéma et cohérence) ;
 2. vérification du DNS (`scripts/check-dns.py`, avec `dns: cloudflare`) : voir [DNS](#dns) ;

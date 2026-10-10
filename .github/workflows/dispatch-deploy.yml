@@ -1,0 +1,70 @@
+# Reusable — the deploy job of an app repo. Starts deploy-app.yml in the infra
+# repo and follows it, so the app's run is green only when the deploy is.
+#
+#   deploy:
+#     needs: [resolve, build]
+#     uses: josias-koffi/infra/.github/workflows/dispatch-deploy.yml@main
+#     with: { environment: …, image_tag: …, plan_only: … }
+#     secrets: { INFRA_DEPLOY_TOKEN: "${{ secrets.INFRA_DEPLOY_TOKEN }}" }
+#
+# INFRA_DEPLOY_TOKEN: fine-grained token, Actions read and write on the infra
+# repo only (scripts/onboard-app.sh sets it). It cannot read any credential.
+name: Dispatch deploy (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      image_tag:
+        type: string
+        required: true
+      plan_only:
+        type: boolean
+        default: false
+      manifest:
+        type: string
+        default: .deploy/manifest.yaml
+      infra_repository:
+        type: string
+        default: josias-koffi/infra
+    secrets:
+      INFRA_DEPLOY_TOKEN:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: dispatch-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false
+    steps:
+      - name: ${{ inputs.plan_only && 'Plan' || 'Deploy' }} ${{ inputs.environment }} @ ${{ inputs.image_tag }} (in ${{ inputs.infra_repository }})
+        env:
+          GH_TOKEN: ${{ secrets.INFRA_DEPLOY_TOKEN }}
+          INFRA: ${{ inputs.infra_repository }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          PLAN_ONLY: ${{ inputs.plan_only }}
+          MANIFEST: ${{ inputs.manifest }}
+        run: |
+          set -euo pipefail
+          request_id="${GITHUB_REPOSITORY#*/}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          gh workflow run deploy-app.yml -R "$INFRA" \
+            -f repository="$GITHUB_REPOSITORY" -f ref="$GITHUB_SHA" \
+            -f environment="$ENVIRONMENT" -f image_tag="$IMAGE_TAG" \
+            -f plan_only="$PLAN_ONLY" -f manifest="$MANIFEST" -f request_id="$request_id"
+          # The run carries request_id in its title (run-name of deploy-app.yml).
+          run_id=""
+          for _ in $(seq 1 30); do
+            run_id=$(gh run list -R "$INFRA" -w deploy-app.yml -e workflow_dispatch -L 30 \
+              --json databaseId,displayTitle \
+              --jq "map(select(.displayTitle | contains(\"[$request_id]\")))[0].databaseId // empty")
+            [ -n "$run_id" ] && break
+            sleep 5
+          done
+          [ -n "$run_id" ] || { echo "The deploy run did not start in $INFRA"; exit 1; }
+          echo "Deploy run: https://github.com/$INFRA/actions/runs/$run_id"
+          echo "[Deploy run in $INFRA](https://github.com/$INFRA/actions/runs/$run_id)" >> "$GITHUB_STEP_SUMMARY"
+          gh run watch "$run_id" -R "$INFRA" --interval 15 --exit-status

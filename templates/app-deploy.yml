@@ -3,10 +3,12 @@
 # deploys or only a manual run does, come from .deploy/manifest.yaml
 # (environments.<env>.branch / deploy: auto|manual). Guide: docs/guides/deploy-an-app.md
 #
-# Repo variables : DOKPLOY_URL, TF_STATE_BUCKET
-# Repo secrets   : DOKPLOY_API_KEY, R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
-#                  CF_API_TOKEN + CF_ACCOUNT_ID (only with dns: cloudflare, the default)
-# Env secrets    : the names listed in the manifest, in the GitHub environments.
+# The deploy itself runs in the infra repo (deploy-app.yml): this repo holds no
+# platform credential, only the token that starts it.
+#
+# Repo secret : INFRA_DEPLOY_TOKEN (scripts/onboard-app.sh, in infra)
+# App secrets : the manifest's `secrets`, in the infra environments <app>-<env>
+#               (scripts/init-app-env.sh, in infra)
 name: Deploy
 
 on:
@@ -55,9 +57,10 @@ jobs:
   deploy:
     needs: [resolve, build]
     if: ${{ !failure() && !cancelled() && needs.resolve.outputs.deploy == 'true' }}
-    uses: josias-koffi/infra/.github/workflows/deploy.yml@main
+    uses: josias-koffi/infra/.github/workflows/dispatch-deploy.yml@main
     with:
       environment: ${{ needs.resolve.outputs.environment }}
       image_tag: ${{ needs.resolve.outputs.image_tag }}
       plan_only: ${{ inputs.plan_only == true }}
-    secrets: inherit
+    secrets:
+      INFRA_DEPLOY_TOKEN: ${{ secrets.INFRA_DEPLOY_TOKEN }}

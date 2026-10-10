@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# Creates the GitHub environments of an app from its manifest and fills their
-# secrets. Run it from the app repo (or point it at one); it never overwrites a
-# secret that is already set, so running it again only completes what is missing.
+# Creates the GitHub environments of an app and fills the secrets a human must
+# give (the manifest's `secrets` / `optionalSecrets`). They live in the INFRA
+# repo, as environments <app>-<env>, because the deploy runs there
+# (deploy-app.yml). It never overwrites a secret that is already set, so running
+# it again only completes what is missing.
 #
-#   scripts/init-app-env.sh [-R owner/app] [-e environment] [manifest]
+#   scripts/init-app-env.sh [-R owner/repo] [-e environment] [manifest]
 #
-#   -R  repo of the app       (default: the repo of the current checkout)
+#   -R  repo holding the environments (default: this infra repo → <app>-<env>;
+#       an app repo → <env>, for an app still on the deprecated deploy.yml)
 #   -e  only this environment (default: every key of manifest.environments)
 #   manifest                  (default: .deploy/manifest.yaml)
 #
@@ -30,7 +33,11 @@ shift $((OPTIND - 1))
 MANIFEST=${1:-.deploy/manifest.yaml}
 [ -f "$MANIFEST" ] || { echo "No manifest at $MANIFEST"; exit 1; }
 [ -t 0 ] || { echo "Interactive: run it in a terminal (in Claude Code: ! $0 …)"; exit 1; }
-REPO=${REPO:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}
+INFRA_REPO=$(cd "$(dirname "$0")" && gh repo view --json nameWithOwner --jq .nameWithOwner)
+REPO=${REPO:-$INFRA_REPO}
+APP=$(python3 -c 'import sys,yaml; print(yaml.safe_load(open(sys.argv[1]))["name"])' "$MANIFEST")
+# In infra, one environment per app and environment.
+env_name() { if [ "$REPO" = "$INFRA_REPO" ]; then echo "$APP-$1"; else echo "$1"; fi; }
 
 # environments, then "R NAME" (required) / "O NAME" (optional) lines.
 read -r ENVS < <(python3 -c 'import sys,yaml; print(" ".join(yaml.safe_load(open(sys.argv[1]))["environments"]))' "$MANIFEST")
@@ -48,25 +55,28 @@ fi
 
 echo "Repo $REPO — environments: $ENVS"
 
-# Repo-level settings the deploy workflow needs (scripts/set-secrets.sh --app).
-repo_secrets=" $(gh secret list -R "$REPO" --json name --jq '[.[].name]|join(" ")') "
-repo_vars=" $(gh variable list -R "$REPO" --json name --jq '[.[].name]|join(" ")') "
-missing_repo=()
-for k in DOKPLOY_API_KEY R2_ENDPOINT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
-  [[ $repo_secrets == *" $k "* ]] || missing_repo+=("$k")
-done
-for k in DOKPLOY_URL TF_STATE_BUCKET; do
-  [[ $repo_vars == *" $k "* ]] || missing_repo+=("$k")
-done
-if [ ${#missing_repo[@]} -gt 0 ]; then
-  echo "! repo settings missing: ${missing_repo[*]} — from infra: scripts/set-secrets.sh --app $REPO"
+# An app repo on the deprecated deploy.yml also needs the platform settings.
+if [ "$REPO" != "$INFRA_REPO" ]; then
+  repo_secrets=" $(gh secret list -R "$REPO" --json name --jq '[.[].name]|join(" ")') "
+  repo_vars=" $(gh variable list -R "$REPO" --json name --jq '[.[].name]|join(" ")') "
+  missing_repo=()
+  for k in DOKPLOY_API_KEY R2_ENDPOINT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY; do
+    [[ $repo_secrets == *" $k "* ]] || missing_repo+=("$k")
+  done
+  for k in DOKPLOY_URL TF_STATE_BUCKET; do
+    [[ $repo_vars == *" $k "* ]] || missing_repo+=("$k")
+  done
+  if [ ${#missing_repo[@]} -gt 0 ]; then
+    echo "! repo settings missing: ${missing_repo[*]} — from infra: scripts/set-secrets.sh --legacy-app $REPO"
+  fi
 fi
 
 # Values look secret unless the name says otherwise (an email, a URL…): only
 # those are typed hidden.
 hidden() { [[ $1 =~ (PASSWORD|SECRET|KEY|TOKEN) ]]; }
 
-for env in $ENVS; do
+for e in $ENVS; do
+  env=$(env_name "$e")
   echo
   if gh api "repos/$REPO/environments/$env" >/dev/null 2>&1; then
     echo "== $env (exists)"
@@ -111,4 +121,4 @@ for env in $ENVS; do
 done
 
 echo
-echo "Done. Protect production (required reviewer): https://github.com/$REPO/settings/environments"
+echo "Done. Protect production (required reviewer on $(env_name production)): https://github.com/$REPO/settings/environments"

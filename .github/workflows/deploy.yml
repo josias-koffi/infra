@@ -1,3 +1,7 @@
+# DEPRECATED — the deploy now runs in the infra repo (deploy-app.yml, started by
+# dispatch-deploy.yml), so app repos no longer hold platform credentials. Kept
+# until every app repo has switched (templates/app-deploy.yml).
+#
 # Reusable deploy workflow — called by every app repo:
 #
 #   jobs:

@@ -15,7 +15,9 @@ secrets ou de variables selon la colonne *GitHub*.
 | `R2_BACKUP_BUCKET_PROD`, `R2_BACKUP_BUCKET_STAGING` | variable | oui | buckets de sauvegarde |
 | `R2_BACKUP_PROD_ACCESS_KEY_ID`, `R2_BACKUP_PROD_SECRET_ACCESS_KEY` | secret | oui | token du bucket de prod |
 | `R2_BACKUP_STAGING_ACCESS_KEY_ID`, `R2_BACKUP_STAGING_SECRET_ACCESS_KEY` | secret | oui | token du bucket de staging |
-| `CF_API_TOKEN`, `CF_ACCOUNT_ID` | secret | non | DNS des apps dans toutes les zones du compte (`purge-env.yml` ici ; poussés dans chaque repo d'app par `--app`). `CF_ZONE_ID` est déprécié : repli pour un hôte qu'aucune zone ne couvre |
+| `CF_API_TOKEN`, `CF_ACCOUNT_ID` | secret | non | DNS des apps dans toutes les zones du compte. `CF_ZONE_ID` est déprécié : repli pour un hôte qu'aucune zone ne couvre |
+| `APP_REPOS_READ_TOKEN` | secret | oui pour déployer | token fine-grained *Contents: Read* sur les repos d'apps (`deploy-app.yml`, `purge-env.yml`) |
+| `INFRA_DEPLOY_TOKEN` | — (`.env` seulement) | oui pour brancher une app | token fine-grained *Actions: Read and write* sur ce repo seul ; `scripts/onboard-app.sh` le copie dans chaque repo d'app |
 | `GHCR_USERNAME` / `GHCR_TOKEN` | variable / secret | non | identifiants pour tirer des images privées |
 | `NODE_SSH_PUBLIC_KEY` / `NODE_SSH_PRIVATE_KEY` | variable / secret | avec des serveurs distants | `make node-key` |
 | `NODE_ADMIN_USER` | — | non (`devops`) | utilisateur admin créé par Ansible |
@@ -28,20 +30,22 @@ Secrets propres aux workflows de maintenance :
 | Nom | Workflow |
 |---|---|
 | `GHCR_ADMIN_TOKEN` | `housekeeping.yml` (rétention des images) |
-| `SSH_PRIVATE_KEY`, `MANAGER_IP`, `APP_REPOS_READ_TOKEN` | `purge-env.yml` |
+| `SSH_PRIVATE_KEY`, `MANAGER_IP` | `purge-env.yml` |
 
 ## Repo d'une app
 
-`scripts/set-secrets.sh --app <owner>/<app>` pose les variables et secrets du
-repo depuis le `.env` d'infra ; `scripts/init-app-env.sh`, lancé dans le repo
-de l'app, crée ses environnements et leurs secrets.
+Le déploiement tourne dans infra (`deploy-app.yml`) : le repo d'une app ne
+porte aucun accès plateforme.
 
-| Nom | Type | Rôle |
+| Nom | Où | Rôle |
 |---|---|---|
-| `DOKPLOY_URL`, `TF_STATE_BUCKET` | variables du repo | comme ci-dessus |
-| `DOKPLOY_API_KEY`, `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | secrets du repo | comme ci-dessus |
-| `CF_API_TOKEN`, `CF_ACCOUNT_ID` | secrets du repo | DNS (`dns: cloudflare`), toutes les zones du compte |
-| secrets du manifest | secrets des **environnements** `staging` et `production` | valeurs propres à chaque environnement |
+| `INFRA_DEPLOY_TOKEN` | secret du repo de l'app | lance `deploy-app.yml` dans infra (`scripts/onboard-app.sh`) |
+| secrets du manifest | environnements `<app>-<env>` **du repo infra** | valeurs propres à chaque environnement (`scripts/init-app-env.sh`) |
+
+Une app encore sur l'ancien `deploy.yml` réutilisable garde les secrets
+plateforme dans son repo (`scripts/set-secrets.sh --legacy-app <owner>/<app>`)
+et ses environnements `staging` / `production` ; pour la migrer, voir
+[Déployer une app](../guides/deploy-an-app.md#migrer-une-app-depuis-lancien-deployyml).
 
 ## Commandes `make`
 
@@ -54,12 +58,14 @@ de l'app, crée ses environnements et leurs secrets.
 | `make app-plan MANIFEST=… ENV=… [TAG=…]` | plan d'un environnement d'app |
 | `make app-deploy MANIFEST=… ENV=… TAG=…` | déploiement depuis ton poste |
 | `make test` | schéma, tests du module, validation de tous les roots |
+| `scripts/onboard-app.sh <owner>/<app> [checkout]` | branche une app : token de déploiement, environnements et secrets dans infra |
+| `scripts/migrate-app-secrets.py <manifest> <env>` | recopie les secrets d'une app de l'ancien modèle vers infra |
 
 ## Fichiers à adapter dans un fork
 
 `platform/nodes.yaml`, `platform/adopt.yaml` (à supprimer pour une
 installation neuve), `apps/adopt/`, `infra_repository` dans
-`.github/workflows/deploy.yml`, `uses:` dans `templates/app-deploy.yml`, et la
+`.github/workflows/dispatch-deploy.yml`, `uses:` dans `templates/app-deploy.yml`, et la
 liste des images dans `.github/workflows/housekeeping.yml`.
 
 ## Version de Dokploy

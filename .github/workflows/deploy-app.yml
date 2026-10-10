@@ -1,0 +1,119 @@
+# Deploys one environment of one app — runs HERE, in the infra repo, so the
+# platform credentials (Dokploy, R2, Cloudflare, Resend) never leave it.
+#
+# Started by an app repo through dispatch-deploy.yml (token INFRA_DEPLOY_TOKEN,
+# actions:write on this repo only), or by hand from the Actions tab.
+#
+# Secrets the deploy sees:
+#   repo secrets of infra      the platform credentials (docs/reference/configuration.md)
+#   environment <app>-<env>    the secrets a human types for that app (scripts/init-app-env.sh)
+# A manifest can never ask for a platform credential: validate-manifest.py
+# refuses those names.
+name: Deploy app
+run-name: "deploy ${{ inputs.repository }} ${{ inputs.environment }} @ ${{ inputs.image_tag }}${{ inputs.plan_only && ' (plan)' || '' }} [${{ inputs.request_id }}]"
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: App repository (owner/name)
+        required: true
+      ref:
+        description: Commit of the app repository (its manifest and compose file)
+        required: true
+      environment:
+        description: Environment, a key of manifest.environments
+        required: true
+      image_tag:
+        description: Image tag to deploy
+        required: true
+      plan_only:
+        description: Only show the plan
+        type: boolean
+        default: false
+      manifest:
+        description: Path of the manifest in the app repo
+        default: .deploy/manifest.yaml
+      request_id:
+        description: Set by dispatch-deploy.yml to find this run back
+        default: manual
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.m.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.APP_REPOS_READ_TOKEN }}
+          sparse-checkout: ${{ inputs.manifest }}
+          sparse-checkout-cone-mode: false
+      # The commit must belong to the branch of the environment (as resolve.yml
+      # requires on the app side): a dispatch cannot deploy any commit anywhere.
+      - id: m
+        env:
+          GH_TOKEN: ${{ secrets.APP_REPOS_READ_TOKEN }}
+          REPO: ${{ inputs.repository }}
+          REF: ${{ inputs.ref }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          MANIFEST: ${{ inputs.manifest }}
+        run: |
+          read -r app branch < <(python3 - <<'PY'
+          import os, sys, yaml
+          m = yaml.safe_load(open(os.environ["MANIFEST"]))
+          env = os.environ["ENVIRONMENT"]
+          if env not in m["environments"]:
+              sys.exit(f"{env} is not an environment of {m['name']}")
+          print(m["name"], m["environments"][env].get("branch", ""))
+          PY
+          )
+          if [ -n "$branch" ]; then
+            status=$(gh api "repos/$REPO/compare/$branch...$REF" --jq .status)
+            case $status in
+              identical|behind) ;;
+              *) echo "$REF is not on $branch, the branch of $ENVIRONMENT ($status)"; exit 1 ;;
+            esac
+          fi
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: resolve
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve.outputs.app }}-${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ needs.resolve.outputs.app }}-${{ inputs.environment }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: infra }
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.APP_REPOS_READ_TOKEN }}
+          path: app
+      - uses: opentofu/setup-opentofu@v1
+        with: { tofu_version: 1.12.3, tofu_wrapper: false }
+      - run: pip install --quiet jsonschema pyyaml
+      - name: ${{ inputs.plan_only && 'Plan' || 'Deploy' }} ${{ needs.resolve.outputs.app }} ${{ inputs.environment }} @ ${{ inputs.image_tag }}
+        env:
+          DOKPLOY_URL: ${{ vars.DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          AWS_ENDPOINT_URL_S3: ${{ secrets.R2_ENDPOINT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+        run: |
+          infra/scripts/deploy-app.sh "app/${{ inputs.manifest }}" \
+            "${{ inputs.environment }}" "${{ inputs.image_tag }}" \
+            "${{ inputs.plan_only && 'plan' || 'apply' }}"

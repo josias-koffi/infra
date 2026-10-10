@@ -3,8 +3,9 @@
 
 Beyond the JSON Schema: every `uses:` entry must name a declared component,
 every `domain:` must exist in each environment, a host belongs to one
-environment only (each one owns its DNS records), and a database or cache needs
-its password secret listed in `secrets`.
+environment only (each one owns its DNS records), a database or cache needs
+its password secret listed in `secrets`, and no secret takes the name of a
+platform credential of the infra repo.
 
     scripts/validate-manifest.py path/to/.deploy/manifest.yaml [...]
 """
@@ -14,6 +15,17 @@ import sys
 
 import jsonschema
 import yaml
+
+# Platform credentials: the deploy runs in the infra repo, where these are repo
+# secrets. A manifest listing one would hand it to the app.
+RESERVED = {
+    "DOKPLOY_API_KEY", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
+    "R2_BACKUP_PROD_ACCESS_KEY_ID", "R2_BACKUP_PROD_SECRET_ACCESS_KEY",
+    "R2_BACKUP_STAGING_ACCESS_KEY_ID", "R2_BACKUP_STAGING_SECRET_ACCESS_KEY",
+    "CF_API_TOKEN", "CLOUDFLARE_API_TOKEN", "RESEND_ADMIN_API_KEY",
+    "GHCR_TOKEN", "GHCR_ADMIN_TOKEN", "NODE_SSH_PRIVATE_KEY", "SSH_PRIVATE_KEY",
+    "APP_REPOS_READ_TOKEN", "INFRA_DEPLOY_TOKEN", "GITHUB_TOKEN",
+}
 
 SCHEMA = json.loads((pathlib.Path(__file__).parent.parent / "schema/manifest.v1.json").read_text())
 
@@ -39,6 +51,8 @@ def semantic_errors(m):
         for s in c.get("secrets", []):
             if s not in secrets:
                 errs.append(f"{name}.secrets: '{s}' not declared in secrets")
+    for s in sorted(secrets & RESERVED):
+        errs.append(f"secrets: '{s}' is a platform credential of the infra repo, use another name")
     for s in m.get("lockedSecrets", []):
         if s not in secrets:
             errs.append(f"lockedSecrets: '{s}' not declared in secrets")

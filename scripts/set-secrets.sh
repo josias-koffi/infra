@@ -4,14 +4,16 @@
 # prints a value. Empty values are skipped; the platform job is enabled only
 # once every required secret is set.
 #
-#   scripts/set-secrets.sh [owner/repo]     (default: the repo of the current checkout)
-#   scripts/set-secrets.sh --app owner/app  only what an app repo needs (deploy + DNS)
+#   scripts/set-secrets.sh [owner/repo]            (default: the repo of the current checkout)
+#   scripts/set-secrets.sh --legacy-app owner/app  the platform settings an app repo on the
+#                                                  deprecated deploy.yml needs
+# An app repo on dispatch-deploy.yml needs only INFRA_DEPLOY_TOKEN: scripts/onboard-app.sh.
 set -euo pipefail
 
 APP_MODE=false
-if [ "${1:-}" = --app ]; then
+if [ "${1:-}" = --legacy-app ] || [ "${1:-}" = --app ]; then
   APP_MODE=true; shift
-  [ -n "${1:-}" ] || { echo "Usage: $0 --app owner/app"; exit 1; }
+  [ -n "${1:-}" ] || { echo "Usage: $0 --legacy-app owner/app"; exit 1; }
 fi
 REPO=${1:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}
 ENV_FILE="$(cd "$(dirname "$0")/.." && pwd)/.env"
@@ -23,7 +25,7 @@ get() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -1 | sed 's/^"\(.*\)"$/\1/'; }
 REQUIRED=(DOKPLOY_URL TF_STATE_BUCKET R2_BACKUP_BUCKET_PROD R2_BACKUP_BUCKET_STAGING DOKPLOY_API_KEY R2_ENDPOINT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY
   R2_BACKUP_PROD_ACCESS_KEY_ID R2_BACKUP_PROD_SECRET_ACCESS_KEY
   R2_BACKUP_STAGING_ACCESS_KEY_ID R2_BACKUP_STAGING_SECRET_ACCESS_KEY)
-OPTIONAL=(GHCR_TOKEN NODE_SSH_PRIVATE_KEY CF_API_TOKEN CF_ACCOUNT_ID CF_ZONE_ID)
+OPTIONAL=(GHCR_TOKEN NODE_SSH_PRIVATE_KEY CF_API_TOKEN CF_ACCOUNT_ID CF_ZONE_ID APP_REPOS_READ_TOKEN RESEND_ADMIN_API_KEY)
 VARIABLES=(DOKPLOY_URL TF_STATE_BUCKET R2_BACKUP_BUCKET_PROD R2_BACKUP_BUCKET_STAGING GHCR_USERNAME NODE_SSH_PUBLIC_KEY)
 if $APP_MODE; then
   # The secrets the reusable deploy workflow reads through `secrets: inherit`.
