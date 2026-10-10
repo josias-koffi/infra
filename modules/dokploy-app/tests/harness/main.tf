@@ -1,6 +1,7 @@
 terraform {
   required_providers {
     dokploy = { source = "vanillauys/dokploy" }
+    random  = { source = "hashicorp/random" }
   }
 }
 
@@ -23,13 +24,15 @@ locals {
 module "app" {
   source = "../.."
 
-  app                   = local.manifest.name
-  environment           = var.environment
-  environment_id        = "env-${var.environment}"
-  spec                  = local.manifest
-  env_spec              = local.env_spec
-  image_tag             = "abc1234"
-  secrets               = { for k in concat(try(local.manifest.secrets, []), try(local.manifest.optionalSecrets, [])) : k => lookup(var.secrets, k, "s3cr3t-${lower(k)}") }
+  app            = local.manifest.name
+  environment    = var.environment
+  environment_id = "env-${var.environment}"
+  spec           = local.manifest
+  env_spec       = local.env_spec
+  image_tag      = "abc1234"
+  # Every required secret gets a placeholder; var.secrets adds or overrides
+  # (an optional or generated name given by hand).
+  secrets               = merge({ for k in try(local.manifest.secrets, []) : k => "s3cr3t-${lower(k)}" }, var.secrets)
   compose_file          = local.compose != null ? file("${local.root}/${local.compose}") : ""
   backup_destination_id = "dest-${var.environment}"
   redeploy_after_mounts = false

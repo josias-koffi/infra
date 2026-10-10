@@ -6,5 +6,9 @@ terraform {
       source  = "vanillauys/dokploy"
       version = "~> 1.9"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }

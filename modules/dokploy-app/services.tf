@@ -33,9 +33,9 @@ locals {
   default_ports = { postgres = 5432, mysql = 3306, mariadb = 3306, mongo = 27017 }
   url_schemes   = { postgres = "postgresql", mysql = "mysql", mariadb = "mysql", mongo = "mongodb" }
 
-  db_password = { for k, d in local.databases : k => var.secrets[try(d.passwordSecret, "${upper(k)}_PASSWORD")] }
+  db_password = { for k, d in local.databases : k => local.secret_values[try(d.passwordSecret, "${upper(k)}_PASSWORD")] }
   # Dokploy requires a password on every Redis.
-  cache_password = { for k, c in local.caches : k => var.secrets[try(c.passwordSecret, "${upper(k)}_PASSWORD")] }
+  cache_password = { for k, c in local.caches : k => local.secret_values[try(c.passwordSecret, "${upper(k)}_PASSWORD")] }
 }
 
 resource "dokploy_postgres" "db" {
@@ -65,7 +65,7 @@ resource "dokploy_mysql" "db" {
   database_name          = each.value.database
   database_user          = each.value.user
   database_password      = local.db_password[each.key]
-  database_root_password = var.secrets[try(each.value.rootPasswordSecret, "${upper(each.key)}_ROOT_PASSWORD")]
+  database_root_password = local.secret_values[try(each.value.rootPasswordSecret, "${upper(each.key)}_ROOT_PASSWORD")]
   memory_limit           = try(local.mem_bytes["db:${each.key}"], null)
   cpu_limit              = try(local.cpu_nanos["db:${each.key}"], null)
 }
@@ -81,7 +81,7 @@ resource "dokploy_mariadb" "db" {
   database_name          = each.value.database
   database_user          = each.value.user
   database_password      = local.db_password[each.key]
-  database_root_password = var.secrets[try(each.value.rootPasswordSecret, "${upper(each.key)}_ROOT_PASSWORD")]
+  database_root_password = local.secret_values[try(each.value.rootPasswordSecret, "${upper(each.key)}_ROOT_PASSWORD")]
   memory_limit           = try(local.mem_bytes["db:${each.key}"], null)
   cpu_limit              = try(local.cpu_nanos["db:${each.key}"], null)
 }
@@ -215,7 +215,7 @@ resource "dokploy_application" "svc" {
     local.base_env_lines,
     local.connection_lines[each.key],
     [for k in sort(keys(try(each.value.vars, {}))) : "${k}=${templatestring(tostring(each.value.vars[k]), local.template_ctx)}"],
-    [for k in local.secret_names : "${k}=${var.secrets[k]}" if contains(try(each.value.secrets, local.secret_names), k)],
+    [for k in local.env_secret_names : "${k}=${local.secret_values[k]}" if contains(try(each.value.secrets, local.env_secret_names), k)],
   ))
 }
 

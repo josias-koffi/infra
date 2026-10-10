@@ -19,17 +19,12 @@
 # ==============================================================================
 
 locals {
-  locked_secret_candidates = distinct(concat(
-    [for k, d in try(var.spec.databases, {}) : try(d.passwordSecret, "${upper(k)}_PASSWORD")],
-    [for k, d in try(var.spec.databases, {}) : try(d.rootPasswordSecret, "${upper(k)}_ROOT_PASSWORD") if contains(["mysql", "mariadb"], d.type)],
-    [for k, c in try(var.spec.caches, {}) : try(c.passwordSecret, "${upper(k)}_PASSWORD")],
-    try(var.spec.lockedSecrets, []),
-  ))
-  locked_secret_names = sort([for n in local.locked_secret_candidates : n if contains(local.secret_names, n)])
+  locked_secret_candidates = distinct(concat(local.password_secrets, try(var.spec.lockedSecrets, [])))
+  locked_secret_names      = sort([for n in local.locked_secret_candidates : n if contains(local.secret_names, n)])
 }
 
 resource "terraform_data" "locked_secrets" {
   # The fingerprint is not secret: these values are long random strings, and
   # the state lives in a private bucket.
-  input = { for n in local.locked_secret_names : n => nonsensitive(sha256(var.secrets[n])) }
+  input = { for n in local.locked_secret_names : n => nonsensitive(sha256(local.secret_values[n])) }
 }

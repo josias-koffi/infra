@@ -17,6 +17,10 @@ terraform {
       source  = "cloudflare/cloudflare"
       version = "~> 5.26"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 
   backend "s3" {
@@ -70,12 +74,9 @@ locals {
 
   all_secrets = jsondecode(var.secrets_json)
   # `secrets` must exist in the GitHub environment; `optionalSecrets` default
-  # to an empty string (features that stay off until their key is set).
+  # to an empty string (features that stay off until their key is set); the
+  # module generates the rest (modules/dokploy-app/secrets.tf).
   missing_secrets = nonsensitive([for k in try(local.manifest.secrets, []) : k if !contains(keys(local.all_secrets), k)])
-  secrets = merge(
-    { for k in try(local.manifest.optionalSecrets, []) : k => try(local.all_secrets[k], "") },
-    { for k in try(local.manifest.secrets, []) : k => try(local.all_secrets[k], "") },
-  )
 
   compose_path = try(local.spec.compose.file, null)
 
@@ -154,7 +155,7 @@ module "app" {
   spec         = local.spec
   env_spec     = local.env_spec
   image_tag    = var.image_tag
-  secrets      = local.secrets
+  secrets      = local.all_secrets
   compose_file = local.compose_path != null ? file("${local.app_root}/${local.compose_path}") : ""
 
   dokploy_endpoint      = var.dokploy_endpoint

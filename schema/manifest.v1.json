@@ -52,6 +52,37 @@
       "$ref": "#/$defs/names",
       "description": "Secrets that can never change once set (they sign or encrypt stored data). Database and cache passwords are always locked."
     },
+    "generate": {
+      "description": "Secrets infra creates once and keeps in the env state (a value given in the GitHub environment wins). Database and cache passwords not listed in secrets are generated without being listed here.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/names"
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "length": {
+                "type": "integer",
+                "minimum": 16,
+                "maximum": 128,
+                "default": 32
+              },
+              "special": {
+                "type": "boolean",
+                "default": false,
+                "description": "Add symbols (off by default: values often end up inside URLs)."
+              }
+            }
+          }
+        }
+      ]
+    },
     "vars": {
       "$ref": "#/$defs/vars"
     },

@@ -1,0 +1,27 @@
+# Test fixture: nothing typed by a human but an email. The database and cache
+# passwords and SESSION_SECRET are generated; MAIL_TO is optional and unset.
+apiVersion: deploy/v1
+name: gen
+secrets: [ADMIN_EMAIL]
+optionalSecrets: [MAIL_TO]
+generate:
+  SESSION_SECRET: { length: 48 }
+lockedSecrets: [SESSION_SECRET]
+apps:
+  api:
+    image: ghcr.io/example/gen-api
+    port: 8080
+    domain: api
+    uses: [db, cache]
+  web:
+    image: ghcr.io/example/gen-web
+    port: 3000
+    domain: web
+    secrets: [ADMIN_EMAIL]
+databases:
+  db: { type: postgres, database: gen, user: gen }
+caches:
+  cache: { type: redis }
+environments:
+  staging:
+    domains: { api: gen-api.example.com, web: gen.example.com }

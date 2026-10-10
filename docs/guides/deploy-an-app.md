@@ -230,7 +230,7 @@ Sont donc verrouillés :
 
 - le mot de passe de chaque base et de chaque cache (`passwordSecret`, par
   défaut `<CLÉ>_PASSWORD`) et le mot de passe root de mysql/mariadb, dans les
-  deux modes ;
+  deux modes, qu'il soit saisi ou généré par infra ;
 - chaque nom listé dans `lockedSecrets` :
 
   ```yaml
@@ -250,7 +250,8 @@ Rotation volontaire, depuis ton poste :
 
 1. change le mot de passe dans le service lui-même, par exemple
    `ALTER ROLE <user> WITH PASSWORD '…'` dans le conteneur Postgres ;
-2. mets la nouvelle valeur dans l'environnement GitHub ;
+2. mets la nouvelle valeur dans l'environnement GitHub `<app>-<env>` d'infra
+   (une valeur saisie remplace aussi une valeur générée) ;
 3. déploie en levant le verrou pour ce nom seulement :
 
    ```bash

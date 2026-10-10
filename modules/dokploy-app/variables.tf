@@ -36,7 +36,7 @@ variable "image_tag" {
 
 variable "secrets" {
   type        = map(string)
-  description = "Secret values by name, filtered on manifest `secrets`."
+  description = "Secret values given by a human, by name. Only the names the manifest declares or generates are read (secrets.tf)."
   default     = {}
   sensitive   = true
 }

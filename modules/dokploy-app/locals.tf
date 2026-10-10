@@ -17,7 +17,7 @@ locals {
   # A literal `${` is written `$${`.
   raw_vars = merge(try(var.spec.vars, {}), try(var.env_spec.vars, {}))
   template_ctx = {
-    secrets       = var.secrets
+    secrets       = local.secret_values
     domains       = try(var.env_spec.domains, {})
     env           = var.environment
     app           = var.app
@@ -38,8 +38,6 @@ locals {
     [for k in sort(keys(local.domains)) : "${upper(replace(k, "-", "_"))}_DOMAIN=${local.domains[k]}"],
     [for k in sort(keys(local.vars)) : "${k}=${local.vars[k]}"],
   )
-
-  secret_names = sort(nonsensitive(keys(var.secrets)))
 
   # --- Backups: ON by default -------------------------------------------------
   backups         = try(var.spec.backups, {})

@@ -1,0 +1,12 @@
+services:
+  app:
+    image: ghcr.io/example/legacy-app
+    environment:
+      DATABASE_URL: postgres://legacy:${POSTGRES_PASSWORD}@postgres:5432/legacy
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: [db:/var/lib/postgresql/data]
+volumes:
+  db: {}

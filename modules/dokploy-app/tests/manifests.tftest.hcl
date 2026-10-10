@@ -1,3 +1,9 @@
+mock_provider "random" {
+  mock_resource "random_password" {
+    defaults = { result = "generated-pw" }
+  }
+}
+
 mock_provider "dokploy" {
   mock_resource "dokploy_postgres" {
     defaults = { app_name = "sample-db-x1y2z3" }
@@ -148,5 +154,64 @@ run "shared_domain_paths" {
   assert {
     condition     = jsonencode(nonsensitive(output.rendered.aliases)) == jsonencode({ api = ["shared-staging-api"], web = null })
     error_message = "only the used component gets the alias"
+  }
+}
+
+run "generated_secrets" {
+  command = apply
+  module { source = "./tests/harness" }
+  variables {
+    manifest_path = "./tests/fixtures/generate.yaml"
+    environment   = "staging"
+  }
+
+  assert {
+    condition     = strcontains(output.rendered.app_env.api, "DATABASE_URL=postgresql://gen:generated-pw@") && strcontains(output.rendered.app_env.api, "REDIS_URL=redis://default:generated-pw@")
+    error_message = "database and cache passwords are generated when the manifest does not list them"
+  }
+  assert {
+    condition     = strcontains(output.rendered.app_env.api, "SESSION_SECRET=generated-pw") && strcontains(output.rendered.app_env.api, "MAIL_TO=\n")
+    error_message = "a `generate` name is injected like a typed secret; an unset optional one is empty"
+  }
+  assert {
+    condition     = !strcontains(output.rendered.app_env.api, "\nDB_PASSWORD=") && !strcontains(output.rendered.app_env.web, "generated-pw")
+    error_message = "implicit passwords only reach the components that use them; web asked for ADMIN_EMAIL only"
+  }
+  assert {
+    condition     = jsonencode(nonsensitive(output.rendered.locked_secrets)) == jsonencode(["CACHE_PASSWORD", "DB_PASSWORD", "SESSION_SECRET"])
+    error_message = "generated passwords and lockedSecrets are locked"
+  }
+}
+
+run "given_value_wins_over_generated" {
+  command = apply
+  module { source = "./tests/harness" }
+  variables {
+    manifest_path = "./tests/fixtures/generate.yaml"
+    environment   = "staging"
+    secrets       = { DB_PASSWORD = "typed-before", SESSION_SECRET = "kept-session" }
+  }
+
+  assert {
+    condition     = strcontains(output.rendered.app_env.api, "DATABASE_URL=postgresql://gen:typed-before@") && strcontains(output.rendered.app_env.api, "SESSION_SECRET=kept-session")
+    error_message = "a value of the GitHub environment wins over the generated one"
+  }
+}
+
+run "compose_generated_secret" {
+  command = apply
+  module { source = "./tests/harness" }
+  variables {
+    manifest_path = "./tests/fixtures/compose-generate/.deploy/manifest.yaml"
+    environment   = "staging"
+  }
+
+  assert {
+    condition     = strcontains(output.rendered.compose_env, "POSTGRES_PASSWORD=generated-pw")
+    error_message = "legacy compose mode receives generated secrets in its env"
+  }
+  assert {
+    condition     = jsonencode(nonsensitive(output.rendered.locked_secrets)) == jsonencode(["POSTGRES_PASSWORD"])
+    error_message = "the compose database password stays locked"
   }
 }

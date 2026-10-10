@@ -3,7 +3,7 @@
 Schéma : [`schema/manifest.v1.json`](../../schema/manifest.v1.json).
 Validation : `scripts/validate-manifest.py <fichier>`, qui contrôle le schéma
 puis la cohérence (`uses` connus, domaines présents dans chaque
-environnement, secrets de mot de passe déclarés…).
+environnement, secrets générés non saisis, noms réservés…).
 
 Complétion dans l'éditeur, en première ligne :
 `# yaml-language-server: $schema=https://raw.githubusercontent.com/josias-koffi/infra/main/schema/manifest.v1.json`
@@ -18,8 +18,9 @@ Complétion dans l'éditeur, en première ligne :
 | `server` | string | `vps20` | clé de `platform/nodes.yaml` |
 | `mode` | `services` \| `compose` | `services` | un service Dokploy par composant, ou un seul compose (mode legacy, pour l'existant) |
 | `dns` | `cloudflare` \| `external` | `cloudflare` | crée les enregistrements A des domaines, en refusant d'écraser ceux d'un autre propriétaire ([DNS](../guides/deploy-an-app.md#dns)) ; `external` : tu les gères ailleurs |
-| `secrets` | liste de noms | | secrets **obligatoires**, lus dans l'environnement GitHub |
+| `secrets` | liste de noms | | secrets **obligatoires** qu'un humain fournit, lus dans l'environnement GitHub `<app>-<env>` du repo infra |
 | `optionalSecrets` | liste de noms | | secrets valant `""` s'ils sont absents |
+| `generate` | liste de noms, ou `{ NOM: { length, special } }` | | secrets **créés par infra** une fois, gardés dans le state de l'environnement (voir [Secrets générés](#secrets-générés)) |
 | `lockedSecrets` | liste de noms | | secrets qui ne peuvent plus changer une fois posés ; les mots de passe des bases et caches le sont toujours ([secrets verrouillés](../guides/deploy-an-app.md#secrets-verrouillés)) |
 | `vars` | map | | configuration commune à tous les environnements (voir *Templates*) |
 | `apps`, `workers` | map de *composants* | | mode services |
@@ -70,7 +71,7 @@ databases:
     version: 16-alpine        # tag de l'image officielle
     database: app
     user: app
-    passwordSecret: DB_PASSWORD   # défaut : <CLÉ>_PASSWORD
+    passwordSecret: DB_PASSWORD   # défaut : <CLÉ>_PASSWORD ; généré s'il n'est pas dans secrets
     rootPasswordSecret: …         # mysql/mariadb, défaut : <CLÉ>_ROOT_PASSWORD
     envPrefix: DATABASE           # préfixe des variables injectées
     resources: { memory: 1g }
@@ -78,6 +79,38 @@ databases:
 caches:
   cache: { type: redis, version: 7-alpine, passwordSecret: CACHE_PASSWORD }
 ```
+
+## Secrets générés
+
+Rien à saisir pour ce qu'une machine peut inventer :
+
+```yaml
+secrets: [ADMIN_EMAIL]          # seulement ce qu'un humain doit fournir
+generate: [SESSION_SECRET]      # ou { SESSION_SECRET: { length: 64, special: false } }
+lockedSecrets: [SESSION_SECRET]
+databases:
+  db: { type: postgres, database: app, user: app }   # DB_PASSWORD généré
+```
+
+- `generate` : chaque nom reçoit une valeur aléatoire (32 lettres et chiffres
+  par défaut), créée au premier déploiement et stable ensuite. Elle est
+  injectée comme un secret saisi, et utilisable dans les templates
+  (`${secrets.SESSION_SECRET}`).
+- **Mots de passe des bases et caches** : générés sans rien écrire, tant
+  que leur nom (`<CLÉ>_PASSWORD`, `passwordSecret`…) n'est pas dans
+  `secrets`. Seuls les composants qui `use` la base les reçoivent
+  (`DATABASE_PASSWORD`, `DATABASE_URL`…).
+- **Une valeur saisie gagne toujours** : si l'environnement GitHub contient
+  déjà le nom, c'est elle qui sert. Les apps existantes gardent donc leurs
+  mots de passe.
+- Les valeurs générées sont verrouillées comme les autres : si une valeur
+  saisie disparaît et que la valeur générée diffère, le déploiement s'arrête
+  ([secrets verrouillés](../guides/deploy-an-app.md#secrets-verrouillés)).
+- Mode compose (legacy) : `generate` marche aussi, les valeurs arrivent dans
+  l'env du compose (`generate: [POSTGRES_PASSWORD]`).
+
+Un nom ne peut pas être à la fois dans `generate` et dans `secrets`. Les noms
+des accès plateforme (`CF_API_TOKEN`, `DOKPLOY_API_KEY`…) sont refusés.
 
 ## Mode compose
 

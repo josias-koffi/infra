@@ -68,7 +68,7 @@ resource "dokploy_compose" "this" {
 
   env = join("\n", concat(
     local.base_env_lines,
-    [for k in local.secret_names : "${k}=${var.secrets[k]}"],
+    [for k in local.env_secret_names : "${k}=${local.secret_values[k]}"],
   ))
 
   lifecycle {

@@ -3,9 +3,9 @@
 
 Beyond the JSON Schema: every `uses:` entry must name a declared component,
 every `domain:` must exist in each environment, a host belongs to one
-environment only (each one owns its DNS records), a database or cache needs
-its password secret listed in `secrets`, and no secret takes the name of a
-platform credential of the infra repo.
+environment only (each one owns its DNS records), a generated secret is not
+also typed, and no secret takes the name of a platform credential of the infra
+repo.
 
     scripts/validate-manifest.py path/to/.deploy/manifest.yaml [...]
 """
@@ -34,7 +34,9 @@ def semantic_errors(m):
     errs = []
     comps = {**m.get("apps", {}), **m.get("workers", {})}
     dbs, caches = m.get("databases", {}), m.get("caches", {})
-    secrets = set(m.get("secrets", [])) | set(m.get("optionalSecrets", []))
+    typed = set(m.get("secrets", [])) | set(m.get("optionalSecrets", []))
+    generated = set(m.get("generate", []))   # a list, or the keys of a map
+    secrets = typed | generated
     known = set(comps) | set(dbs) | set(caches)
     for name, c in comps.items():
         for u in c.get("uses", []):
@@ -50,12 +52,14 @@ def semantic_errors(m):
             errs.append(f"{name}.paths: needs a domain")
         for s in c.get("secrets", []):
             if s not in secrets:
-                errs.append(f"{name}.secrets: '{s}' not declared in secrets")
+                errs.append(f"{name}.secrets: '{s}' not declared in secrets or generate")
+    for s in sorted(typed & generated):
+        errs.append(f"generate: '{s}' is also in secrets/optionalSecrets — infra generates it, nobody types it")
     for s in sorted(secrets & RESERVED):
         errs.append(f"secrets: '{s}' is a platform credential of the infra repo, use another name")
     for s in m.get("lockedSecrets", []):
         if s not in secrets:
-            errs.append(f"lockedSecrets: '{s}' not declared in secrets")
+            errs.append(f"lockedSecrets: '{s}' not declared in secrets or generate")
     seen = {}
     for env, spec in m["environments"].items():
         for k, host in spec.get("domains", {}).items():
@@ -68,13 +72,6 @@ def semantic_errors(m):
                 errs.append(f"databases.{k}.service is only for mode: compose")
             if d.get("type") in ("postgres", "mysql", "mariadb") and not d.get("database"):
                 errs.append(f"databases.{k}.database is required")
-            needed = d.get("passwordSecret", f"{k.upper()}_PASSWORD")
-            if needed not in secrets:
-                errs.append(f"databases.{k}: secret {needed} must be listed in secrets")
-        for k, c in caches.items():
-            needed = c.get("passwordSecret", f"{k.upper()}_PASSWORD")
-            if needed not in secrets:
-                errs.append(f"caches.{k}: secret {needed} must be listed in secrets")
     else:
         routes = m.get("compose", {}).get("routes", {})
         for r, spec in routes.items():
