@@ -16,8 +16,13 @@ locals {
   # file hash, to force a recreate when only an inline config changed).
   # A literal `${` is written `$${`.
   raw_vars = merge(try(var.spec.vars, {}), try(var.env_spec.vars, {}))
+
+  # Add-ons a component can `use` (apps/env creates them): each bucket, and
+  # `mail`. Templates reach their variables as ${addons.<key>.<NAME>}.
+  addon_names = concat(keys(try(var.spec.buckets, {})), try(var.spec.mail, null) != null ? ["mail"] : [])
   template_ctx = {
     secrets       = local.secret_values
+    addons        = var.addons
     domains       = try(var.env_spec.domains, {})
     env           = var.environment
     app           = var.app

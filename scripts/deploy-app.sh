@@ -75,7 +75,7 @@ if tofu -chdir="$ROOT/apps/env" show -json tfplan | python3 -c '
 import hashlib, json, os, sys
 plan = json.load(sys.stdin)
 changes = plan.get("resource_changes", [])
-stateful = ("dokploy_postgres", "dokploy_mysql", "dokploy_mariadb", "dokploy_mongo", "dokploy_redis", "dokploy_compose", "dokploy_mount")
+stateful = ("dokploy_postgres", "dokploy_mysql", "dokploy_mariadb", "dokploy_mongo", "dokploy_redis", "dokploy_compose", "dokploy_mount", "cloudflare_r2_bucket")
 bad = [r["address"] for r in changes if r["type"] in stateful and "delete" in r["change"]["actions"]]
 if bad:
     print("Refusing to destroy stateful resources:", *bad, sep="\n  ")

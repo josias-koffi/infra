@@ -41,6 +41,13 @@ variable "secrets" {
   sensitive   = true
 }
 
+variable "addons" {
+  type        = map(map(string))
+  description = "Variables of each add-on living outside Dokploy (buckets, mail), by its manifest key: { medias = { S3_BUCKET = \"…\", … } }. Built by apps/env."
+  default     = {}
+  sensitive   = true
+}
+
 variable "compose_file" {
   type        = string
   description = "Content of the compose file (mode compose only)."

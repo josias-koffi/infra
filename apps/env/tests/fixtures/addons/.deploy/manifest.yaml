@@ -1,0 +1,14 @@
+apiVersion: deploy/v1
+name: shop
+apps:
+  api:
+    image: ghcr.io/example/shop-api
+    port: 8080
+    domain: site
+    uses: [medias, files]
+buckets:
+  medias: {}
+  files: { jurisdiction: default, envPrefix: FILES }
+environments:
+  staging:
+    domains: { site: staging.shop.example.com, blog: blog-staging.example.com }

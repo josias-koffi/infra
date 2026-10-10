@@ -1,0 +1,21 @@
+# Test fixture: a bucket the api uses; the web does not get its keys.
+apiVersion: deploy/v1
+name: addon
+apps:
+  api:
+    image: ghcr.io/example/addon-api
+    port: 8080
+    domain: site
+    uses: [medias]
+    vars:
+      PUBLIC_BUCKET: ${addons.medias.S3_BUCKET}
+  web:
+    image: ghcr.io/example/addon-web
+    port: 3000
+    domain: site
+    path: /
+buckets:
+  medias: {}
+environments:
+  staging:
+    domains: { site: addon-staging.example.com }

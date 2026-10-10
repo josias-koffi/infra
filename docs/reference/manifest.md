@@ -26,6 +26,7 @@ Complétion dans l'éditeur, en première ligne :
 | `apps`, `workers` | map de *composants* | | mode services |
 | `databases` | map | | bases de données |
 | `caches` | map | | Redis |
+| `buckets` | map | | stockage objet R2 créé par infra (voir [Buckets](#buckets)) |
 | `compose` | objet | | mode compose |
 | `backups` | objet | activées | voir [sauvegardes](../guides/backups-and-restore.md) |
 | `environments` | map | requis | un environnement Dokploy par clé |
@@ -56,6 +57,7 @@ Complétion dans l'éditeur, en première ligne :
 |---|---|
 | une base (`databases.db`) | `DATABASE_HOST`, `_PORT`, `_NAME`, `_USER`, `_PASSWORD`, `_URL` (préfixe modifiable avec `envPrefix`) |
 | un cache (`caches.cache`) | `REDIS_HOST`, `_PORT`, `_PASSWORD`, `_URL` |
+| un bucket (`buckets.medias`) | `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION=auto`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE=true` (préfixe modifiable avec `envPrefix`) |
 | une autre app ou un worker | `<APP>_URL=https://<son domaine>` (s'il en a un) et `<APP>_INTERNAL_URL=http://<app>-<env>-<composant>:<port>` (s'il a un `port`) : alias stable sur `dokploy-network`, pour les appels côté serveur sans repasser par Traefik ni exposer de route |
 
 L'hôte d'une base est son `app_name` Dokploy, unique grâce à un suffixe
@@ -79,6 +81,34 @@ databases:
 caches:
   cache: { type: redis, version: 7-alpine, passwordSecret: CACHE_PASSWORD }
 ```
+
+## Buckets
+
+```yaml
+buckets:
+  medias: {}                                   # tous les défauts
+  exports: { jurisdiction: default, envPrefix: EXPORTS }
+apps:
+  api: { uses: [medias], … }
+```
+
+| Clé | Défaut | Rôle |
+|---|---|---|
+| `backend` | `r2` | seul backend pour l'instant |
+| `name` | `<name>-<env>-<clé>` | nom du bucket ; un nom fixe n'est accepté qu'avec un seul environnement (ou dans `environments.<env>.overrides.buckets`) |
+| `jurisdiction` | `eu` | `eu` : les objets restent dans l'UE (RGPD). Ne change plus une fois le bucket créé |
+| `envPrefix` | `S3` | préfixe des variables injectées |
+
+Au déploiement, infra crée le bucket et un token Cloudflare qui ne peut lire
+et écrire **que ce bucket** ; la clé S3 est l'id du token, le secret le
+SHA-256 de sa valeur (convention R2). Rien n'est à saisir. Un composant les
+reçoit avec `uses`, un compose (mode legacy) les reçoit tous ; un template les
+lit avec `${addons.medias.S3_BUCKET}`.
+
+Le déploiement refuse un plan qui supprime un bucket (comme une base). Un
+bucket créé à la main se reprend avec
+`apps/adopt/<app>.yaml` → `environments.<env>.buckets.<clé>: <nom>` ; sa
+juridiction doit être celle du manifest.
 
 ## Secrets générés
 

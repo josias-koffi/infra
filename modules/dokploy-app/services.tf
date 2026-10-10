@@ -144,6 +144,8 @@ locals {
           "${try(local.caches[u].envPrefix, "REDIS")}_PORT=6379",
           "${try(local.caches[u].envPrefix, "REDIS")}_PASSWORD=${local.cache_password[u]}",
           "${try(local.caches[u].envPrefix, "REDIS")}_URL=redis://default:${local.cache_password[u]}@${dokploy_redis.cache[u].app_name}:6379",
+          ] : contains(local.addon_names, u) ? [
+          for k in sort(keys(var.addons[u])) : "${k}=${var.addons[u][k]}"
           ] : contains(keys(local.components), u) ? concat(
           # The public domain, for what leaves the server (links, redirects).
           [for d in [try(local.components[u].domain, null)] : "${upper(replace(u, "-", "_"))}_URL=https://${local.domains[d]}" if d != null],

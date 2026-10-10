@@ -52,6 +52,7 @@ app-deploy: ## Deploy one env of an app from a workstation (CI does it on push).
 	@scripts/deploy-app.sh $(MANIFEST) $(ENV) $(TAG) apply
 
 test: ## Validate manifests, run the module tests, validate every root
-	@scripts/validate-manifest.py examples/*/.deploy/manifest.yaml
+	@scripts/validate-manifest.py examples/*/.deploy/manifest.yaml modules/dokploy-app/tests/fixtures/*.yaml modules/dokploy-app/tests/fixtures/*/.deploy/manifest.yaml apps/env/tests/fixtures/*/.deploy/manifest.yaml
 	@cd modules/dokploy-app && tofu init -backend=false -input=false >/dev/null && tofu test
+	@cd apps/env && tofu init -backend=false -input=false >/dev/null && tofu test
 	@for d in platform apps/project apps/env; do tofu -chdir=$$d init -backend=false -input=false >/dev/null && tofu -chdir=$$d validate >/dev/null && echo "✓ $$d"; done

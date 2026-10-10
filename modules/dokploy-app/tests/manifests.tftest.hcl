@@ -204,6 +204,12 @@ run "compose_generated_secret" {
   variables {
     manifest_path = "./tests/fixtures/compose-generate/.deploy/manifest.yaml"
     environment   = "staging"
+    addons        = { files = { S3_BUCKET = "legacy-staging-files" } }
+  }
+
+  assert {
+    condition     = strcontains(output.rendered.compose_env, "S3_BUCKET=legacy-staging-files")
+    error_message = "a compose has no uses: it receives every add-on"
   }
 
   assert {
@@ -213,5 +219,35 @@ run "compose_generated_secret" {
   assert {
     condition     = jsonencode(nonsensitive(output.rendered.locked_secrets)) == jsonencode(["POSTGRES_PASSWORD"])
     error_message = "the compose database password stays locked"
+  }
+}
+
+run "bucket_addon" {
+  command = apply
+  module { source = "./tests/harness" }
+  variables {
+    manifest_path = "./tests/fixtures/addons.yaml"
+    environment   = "staging"
+    addons = {
+      medias = {
+        S3_BUCKET            = "addon-staging-medias"
+        S3_ENDPOINT          = "https://acc.eu.r2.cloudflarestorage.com"
+        S3_ACCESS_KEY_ID     = "tok-id"
+        S3_SECRET_ACCESS_KEY = "tok-secret"
+      }
+    }
+  }
+
+  assert {
+    condition     = strcontains(output.rendered.app_env.api, "S3_BUCKET=addon-staging-medias") && strcontains(output.rendered.app_env.api, "S3_SECRET_ACCESS_KEY=tok-secret")
+    error_message = "uses: [medias] injects the bucket's S3 coordinates"
+  }
+  assert {
+    condition     = strcontains(output.rendered.app_env.api, "PUBLIC_BUCKET=addon-staging-medias")
+    error_message = "templates reach add-ons through $${addons.<key>.<NAME>}"
+  }
+  assert {
+    condition     = !strcontains(output.rendered.app_env.web, "S3_")
+    error_message = "a component that does not use the bucket gets none of its keys"
   }
 }

@@ -54,7 +54,7 @@ locals {
 
   # Two-level merge of environments.<env>.overrides: per component, and per
   # `resources` block inside it. Anything deeper is replaced, not merged.
-  sections = ["apps", "workers", "databases", "caches"]
+  sections = ["apps", "workers", "databases", "caches", "buckets"]
   spec = merge(local.manifest, {
     for s in local.sections : s => {
       for k, c in try(local.manifest[s], {}) : k => merge(
@@ -156,6 +156,7 @@ module "app" {
   env_spec     = local.env_spec
   image_tag    = var.image_tag
   secrets      = local.all_secrets
+  addons       = local.addons
   compose_file = local.compose_path != null ? file("${local.app_root}/${local.compose_path}") : ""
 
   dokploy_endpoint      = var.dokploy_endpoint

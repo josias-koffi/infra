@@ -1,5 +1,5 @@
 # Test fixture: legacy compose mode, the stack's own Postgres gets a generated
-# password through `generate`.
+# password through `generate`, and the env receives every add-on.
 apiVersion: deploy/v1
 name: legacy
 mode: compose
@@ -10,6 +10,8 @@ compose:
 databases:
   postgres: { type: postgres, service: postgres, database: legacy, user: legacy }
 generate: [POSTGRES_PASSWORD]
+buckets:
+  files: {}
 environments:
   staging:
     externalVolumes: true

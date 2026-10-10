@@ -15,7 +15,7 @@ secrets ou de variables selon la colonne *GitHub*.
 | `R2_BACKUP_BUCKET_PROD`, `R2_BACKUP_BUCKET_STAGING` | variable | oui | buckets de sauvegarde |
 | `R2_BACKUP_PROD_ACCESS_KEY_ID`, `R2_BACKUP_PROD_SECRET_ACCESS_KEY` | secret | oui | token du bucket de prod |
 | `R2_BACKUP_STAGING_ACCESS_KEY_ID`, `R2_BACKUP_STAGING_SECRET_ACCESS_KEY` | secret | oui | token du bucket de staging |
-| `CF_API_TOKEN`, `CF_ACCOUNT_ID` | secret | non | DNS des apps dans toutes les zones du compte. `CF_ZONE_ID` est déprécié : repli pour un hôte qu'aucune zone ne couvre |
+| `CF_API_TOKEN`, `CF_ACCOUNT_ID` | secret | non | DNS des apps dans toutes les zones du compte, buckets R2 et leurs tokens. Permissions du token : *Zone → Zone → Read* et *Zone → DNS → Edit* (toutes les zones), *Account → Workers R2 Storage → Edit*, *Account → Account API Tokens → Edit*. `CF_ZONE_ID` est déprécié : repli pour un hôte qu'aucune zone ne couvre |
 | `APP_REPOS_READ_TOKEN` | secret | oui pour déployer | token fine-grained *Contents: Read* sur les repos d'apps (`deploy-app.yml`, `purge-env.yml`) |
 | `INFRA_DEPLOY_TOKEN` | — (`.env` seulement) | oui pour brancher une app | token fine-grained *Actions: Read and write* sur ce repo seul ; `scripts/onboard-app.sh` le copie dans chaque repo d'app |
 | `GHCR_USERNAME` / `GHCR_TOKEN` | variable / secret | non | identifiants pour tirer des images privées |

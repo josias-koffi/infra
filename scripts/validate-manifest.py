@@ -37,7 +37,11 @@ def semantic_errors(m):
     typed = set(m.get("secrets", [])) | set(m.get("optionalSecrets", []))
     generated = set(m.get("generate", []))   # a list, or the keys of a map
     secrets = typed | generated
-    known = set(comps) | set(dbs) | set(caches)
+    buckets = m.get("buckets", {})
+    addons = set(buckets) | ({"mail"} if m.get("mail") is not None else set())
+    known = set(comps) | set(dbs) | set(caches) | addons
+    for a in sorted(addons & (set(comps) | set(dbs) | set(caches))):
+        errs.append(f"'{a}' is both an add-on (buckets/mail) and a component, database or cache")
     for name, c in comps.items():
         for u in c.get("uses", []):
             if u not in known:
@@ -60,6 +64,10 @@ def semantic_errors(m):
     for s in m.get("lockedSecrets", []):
         if s not in secrets:
             errs.append(f"lockedSecrets: '{s}' not declared in secrets or generate")
+    for k, b in buckets.items():
+        if b.get("name") and len(m["environments"]) > 1:
+            errs.append(f"buckets.{k}.name: one fixed name for {len(m['environments'])} environments would share the bucket — "
+                        "drop it (default <name>-<env>-<key>) or set it in environments.<env>.overrides")
     seen = {}
     for env, spec in m["environments"].items():
         for k, host in spec.get("domains", {}).items():

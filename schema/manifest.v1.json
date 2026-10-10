@@ -86,6 +86,43 @@
     "vars": {
       "$ref": "#/$defs/vars"
     },
+    "buckets": {
+      "type": "object",
+      "description": "Object storage created by infra: an R2 bucket and a token limited to it. A component gets its S3 coordinates through `uses`.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]{0,30}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "backend": {
+            "enum": [
+              "r2"
+            ],
+            "default": "r2"
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$",
+            "description": "Bucket name (default <name>-<env>-<key>). It changes per environment: write it with a ${env}-free value only for a single-environment app."
+          },
+          "jurisdiction": {
+            "enum": [
+              "eu",
+              "default"
+            ],
+            "default": "eu",
+            "description": "eu: objects guaranteed to stay in the EU (GDPR). Cannot change once the bucket exists."
+          },
+          "envPrefix": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "default": "S3"
+          }
+        }
+      }
+    },
     "compose": {
       "type": "object",
       "additionalProperties": false,

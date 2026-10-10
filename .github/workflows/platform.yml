@@ -23,10 +23,15 @@ jobs:
         with: { tofu_version: "${{ env.TOFU_VERSION }}", tofu_wrapper: false }
       - run: pip install --quiet jsonschema pyyaml ansible-core
       - name: Manifests
-        run: scripts/validate-manifest.py examples/*/.deploy/manifest.yaml
+        run: scripts/validate-manifest.py examples/*/.deploy/manifest.yaml modules/dokploy-app/tests/fixtures/*.yaml modules/dokploy-app/tests/fixtures/*/.deploy/manifest.yaml apps/env/tests/fixtures/*/.deploy/manifest.yaml
       - name: Module tests (mocked provider)
         run: |
           cd modules/dokploy-app
+          tofu init -backend=false -input=false
+          tofu test
+      - name: apps/env tests (mocked providers and states)
+        run: |
+          cd apps/env
           tofu init -backend=false -input=false
           tofu test
       - name: Validate roots
