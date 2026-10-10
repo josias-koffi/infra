@@ -79,6 +79,21 @@ locals {
 
   compose_path = try(local.spec.compose.file, null)
 
+  # DNS: every zone the token sees (of CF_ACCOUNT_ID when set). Each host goes
+  # to the zone with the longest matching suffix, so a.b.example.com lands in
+  # b.example.com when both zones exist.
+  dns_managed = try(local.manifest.dns, "cloudflare") == "cloudflare"
+  dns_hosts   = local.dns_managed ? try(local.env_spec.domains, {}) : {}
+  zones       = { for z in try(data.cloudflare_zones.all[0].result, []) : z.name => z.id }
+  zone_name_for = {
+    for k, h in local.dns_hosts : k => try(split(" ", reverse(sort([
+      for z in keys(local.zones) : format("%04d %s", length(z), z) if h == z || endswith(h, ".${z}")
+    ]))[0])[1], null)
+  }
+  # CF_ZONE_ID (deprecated) still answers for a host no listed zone covers.
+  zone_for       = { for k, z in local.zone_name_for : k => z != null ? local.zones[z] : (var.cf_zone_id != "" ? var.cf_zone_id : null) }
+  hosts_off_zone = [for k, z in local.zone_for : local.dns_hosts[k] if z == null]
+
   adopt_file = "${path.module}/../adopt/${local.app}.yaml"
   adopt      = try(yamldecode(file(local.adopt_file)).environments[var.environment], {})
 }
@@ -113,6 +128,12 @@ data "terraform_remote_state" "project" {
   }
 }
 
+data "cloudflare_zones" "all" {
+  count   = length(local.dns_hosts) > 0 ? 1 : 0
+  account = var.cf_account_id != "" ? { id = var.cf_account_id } : null
+  status  = "active"
+}
+
 check "secrets_present" {
   assert {
     condition     = length(local.missing_secrets) == 0
@@ -144,15 +165,22 @@ module "app" {
 # DNS: one A record per domain of the env, to the node that runs it. Apps whose
 # records still live elsewhere set `dns: external` until they are adopted.
 resource "cloudflare_dns_record" "domains" {
-  for_each = try(local.manifest.dns, "cloudflare") == "cloudflare" ? try(local.env_spec.domains, {}) : {}
+  for_each = local.dns_hosts
 
-  zone_id = var.cf_zone_id
+  zone_id = local.zone_for[each.key]
   name    = each.value
   type    = "A"
   content = local.node.ip
   ttl     = 1     # automatic
   proxied = false # Let's Encrypt HTTP challenge on the Dokploy Traefik
   comment = "${local.app} ${var.environment} — infra apps/env"
+
+  lifecycle {
+    precondition {
+      condition     = length(local.hosts_off_zone) == 0
+      error_message = "Not in any zone of the Cloudflare account: ${join(", ", local.hosts_off_zone)}. Add the domain to Cloudflare, or set dns: external."
+    }
+  }
 }
 
 # Records that carry our comment but are missing from the state are imported
@@ -193,5 +221,5 @@ import {
 import {
   for_each = try(local.adopt.dnsRecords, {})
   to       = cloudflare_dns_record.domains[each.key]
-  id       = "${var.cf_zone_id}/${each.value}"
+  id       = "${local.zone_for[each.key]}/${each.value}"
 }

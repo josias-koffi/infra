@@ -41,6 +41,7 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      TF_VAR_cf_account_id: ${{ secrets.CF_ACCOUNT_ID }}
       TF_VAR_cf_zone_id: ${{ secrets.CF_ZONE_ID }}
     steps:
       - uses: actions/checkout@v4

@@ -36,9 +36,15 @@ variable "secrets_json" {
   sensitive   = true
 }
 
+variable "cf_account_id" {
+  type        = string
+  description = "Cloudflare account whose zones hold the domains (CF_ACCOUNT_ID). Empty: every zone the token sees."
+  default     = ""
+}
+
 variable "cf_zone_id" {
   type        = string
-  description = "Cloudflare zone of koklo.dev."
+  description = "Deprecated (CF_ZONE_ID): zone used for a host that no zone of the account covers."
   default     = ""
 }
 

@@ -8,7 +8,7 @@
 #   DOKPLOY_URL, DOKPLOY_API_KEY                      Dokploy panel and API key
 #   TF_STATE_BUCKET                                   R2 bucket of the states
 #   AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY   R2 state backend
-#   CLOUDFLARE_API_TOKEN, CF_ZONE_ID                  DNS (manifests with dns: cloudflare)
+#   CLOUDFLARE_API_TOKEN, CF_ACCOUNT_ID               DNS in any zone of the account (dns: cloudflare)
 #   SECRETS_JSON                                      JSON object of secret values (toJSON(secrets))
 set -euo pipefail
 
@@ -49,7 +49,7 @@ echo "::endgroup::"
 
 echo "::group::${APP} — ${ENVIRONMENT} (apps/${APP}/${ENVIRONMENT}.tfstate)"
 export TF_VAR_secrets_json="${SECRETS_JSON:-{\}}"
-export TF_VAR_cf_zone_id="${CF_ZONE_ID:-}"
+export TF_VAR_cf_account_id="${CF_ACCOUNT_ID:-}" TF_VAR_cf_zone_id="${CF_ZONE_ID:-}"
 tofu -chdir="$ROOT/apps/env" init -input=false -reconfigure \
   -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="key=apps/${APP}/${ENVIRONMENT}.tfstate" >/dev/null
 "$ROOT/scripts/migrate-env-state.sh" "$ROOT/apps/env"

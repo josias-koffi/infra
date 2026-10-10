@@ -15,7 +15,7 @@ secrets ou de variables selon la colonne *GitHub*.
 | `R2_BACKUP_BUCKET_PROD`, `R2_BACKUP_BUCKET_STAGING` | variable | oui | buckets de sauvegarde |
 | `R2_BACKUP_PROD_ACCESS_KEY_ID`, `R2_BACKUP_PROD_SECRET_ACCESS_KEY` | secret | oui | token du bucket de prod |
 | `R2_BACKUP_STAGING_ACCESS_KEY_ID`, `R2_BACKUP_STAGING_SECRET_ACCESS_KEY` | secret | oui | token du bucket de staging |
-| `CF_API_TOKEN`, `CF_ZONE_ID` | secret | non | DNS des apps (`purge-env.yml` ici ; poussés dans chaque repo d'app par `--app`) |
+| `CF_API_TOKEN`, `CF_ACCOUNT_ID` | secret | non | DNS des apps dans toutes les zones du compte (`purge-env.yml` ici ; poussés dans chaque repo d'app par `--app`). `CF_ZONE_ID` est déprécié : repli pour un hôte qu'aucune zone ne couvre |
 | `GHCR_USERNAME` / `GHCR_TOKEN` | variable / secret | non | identifiants pour tirer des images privées |
 | `NODE_SSH_PUBLIC_KEY` / `NODE_SSH_PRIVATE_KEY` | variable / secret | avec des serveurs distants | `make node-key` |
 | `NODE_ADMIN_USER` | — | non (`devops`) | utilisateur admin créé par Ansible |
@@ -40,7 +40,7 @@ de l'app, crée ses environnements et leurs secrets.
 |---|---|---|
 | `DOKPLOY_URL`, `TF_STATE_BUCKET` | variables du repo | comme ci-dessus |
 | `DOKPLOY_API_KEY`, `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | secrets du repo | comme ci-dessus |
-| `CF_API_TOKEN`, `CF_ZONE_ID` | secrets du repo | DNS (`dns: cloudflare`) |
+| `CF_API_TOKEN`, `CF_ACCOUNT_ID` | secrets du repo | DNS (`dns: cloudflare`), toutes les zones du compte |
 | secrets du manifest | secrets des **environnements** `staging` et `production` | valeurs propres à chaque environnement |
 
 ## Commandes `make`

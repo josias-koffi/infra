@@ -78,7 +78,7 @@ privée, déclare `registry: ghcr` sur le composant ; le registre est créé par
 | Variable | `TF_STATE_BUCKET` | bucket R2 des states |
 | Secret | `DOKPLOY_API_KEY` | clé API Dokploy |
 | Secret | `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | token du bucket de state |
-| Secret | `CF_API_TOKEN`, `CF_ZONE_ID` | seulement avec `dns: cloudflare` (le défaut) ; token *Zone → DNS → Edit* |
+| Secret | `CF_API_TOKEN`, `CF_ACCOUNT_ID` | seulement avec `dns: cloudflare` (le défaut) ; token de compte *Zone → Zone → Read* et *Zone → DNS → Edit* sur toutes les zones |
 
 Raccourci : `scripts/set-secrets.sh --app <owner>/<app>` pousse ces variables
 et secrets depuis le `.env` d'infra.
@@ -157,10 +157,20 @@ Avec `dns: cloudflare` (le défaut), il suffit d'écrire le domaine dans
 l'IP du serveur, non proxifié (challenge HTTP de Let's Encrypt), et le
 supprime quand le domaine disparaît du manifest.
 
+**N'importe quelle zone du compte Cloudflare.** Il n'y a pas d'id de zone à
+fournir : chaque hôte va dans la zone du compte dont il est le suffixe le plus
+long (`a.b.example.com` va dans `b.example.com` si les deux zones existent).
+Un nouveau domaine se gère donc en l'ajoutant à Cloudflare, puis en l'écrivant
+dans le manifest.
+
+Un enregistrement qui porte le commentaire `<app> <env> — infra apps/env` mais
+manque au state est réimporté au déploiement suivant (c'est ainsi que le
+passage au provider Cloudflare v5 a migré les states).
+
 **Un enregistrement n'a qu'un propriétaire.** Avant le plan,
 `scripts/check-dns.py` refuse le déploiement si :
 
-- un domaine n'appartient pas à la zone `CF_ZONE_ID` ;
+- un domaine n'appartient à aucune zone du compte Cloudflare ;
 - un enregistrement A, AAAA ou CNAME existe déjà sur ce nom sans avoir été
   créé par `apps/env` (commentaire `<app> <env> — infra apps/env`) ni déclaré
   dans `apps/adopt/<app>.yaml`. Sans ce contrôle, l'apply ajouterait un
