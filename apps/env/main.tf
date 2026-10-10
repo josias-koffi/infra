@@ -21,6 +21,10 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.6"
     }
+    restapi = {
+      source  = "Mastercard/restapi"
+      version = "~> 2.0"
+    }
   }
 
   backend "s3" {
@@ -42,6 +46,14 @@ provider "dokploy" {
 
 provider "cloudflare" {
   # CLOUDFLARE_API_TOKEN from the environment.
+}
+
+# Resend (add-on mail): RESEND_ADMIN_API_KEY, through scripts/deploy-app.sh.
+provider "restapi" {
+  uri                   = "https://api.resend.com"
+  headers               = { Authorization = "Bearer ${var.resend_api_key}", "Content-Type" = "application/json" }
+  create_returns_object = true
+  rate_limit            = 2
 }
 
 locals {

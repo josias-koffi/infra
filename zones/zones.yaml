@@ -1,0 +1,14 @@
+# What belongs to a domain rather than to an app (zones/main.tf).
+# DNS of the apps themselves needs nothing here: any zone of the Cloudflare
+# account works from the manifest alone.
+
+# Sending domains (Resend). One line per domain an app sends mail from; each
+# app/env then gets its own key with `mail: {}` in its manifest.
+#   region      eu-west-1 (default) | us-east-1 | sa-east-1 | ap-northeast-1
+#   returnPath  subdomain of the bounce address (default send)
+#   dmarc       DMARC policy written when the domain has none (default p=none)
+#   resendId    adopt a domain already created in Resend (its id, Domains page)
+# The records Resend asks for are created in the domain's zone, unless another
+# owner already holds them (then they are left alone and listed).
+mail:
+  ouiti.com: {}

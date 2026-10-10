@@ -2,6 +2,11 @@
 # DNS lookup produce, without a Cloudflare account.
 mock_provider "dokploy" {}
 mock_provider "random" {}
+mock_provider "restapi" {
+  mock_resource "restapi_object" {
+    defaults = { id = "key-1", create_response = "{\"id\":\"key-1\",\"token\":\"re_sending\"}" }
+  }
+}
 mock_provider "cloudflare" {
   mock_data "cloudflare_zones" {
     defaults = {
@@ -31,6 +36,11 @@ override_data {
       registry_ids           = {}
     }
   }
+}
+
+override_data {
+  target = data.terraform_remote_state.zones
+  values = { outputs = { mail_domains = { "example.com" = { id = "dom-1", region = "eu-west-1" } } } }
 }
 
 override_data {
@@ -78,5 +88,18 @@ run "dns_zone_by_longest_suffix" {
   assert {
     condition     = cloudflare_dns_record.domains["site"].zone_id == "zone-shop" && cloudflare_dns_record.domains["blog"].zone_id == "zone-example"
     error_message = "each host goes to the zone with the longest matching suffix"
+  }
+}
+
+run "mail_key_limited_to_the_domain" {
+  command = apply
+
+  assert {
+    condition     = jsondecode(restapi_object.mail_key[0].data).domain_id == "dom-1" && jsondecode(restapi_object.mail_key[0].data).permission == "sending_access"
+    error_message = "a sending-only key, limited to the zone of the env's first domain"
+  }
+  assert {
+    condition     = nonsensitive(local.addons.mail.RESEND_API_KEY) == "re_sending" && nonsensitive(local.addons.mail.SMTP_PASSWORD) == "re_sending" && nonsensitive(local.addons.mail.MAIL_DOMAIN) == "example.com"
+    error_message = "the token comes from the creation answer, for the API and for SMTP"
   }
 }

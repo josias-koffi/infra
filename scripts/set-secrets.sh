@@ -26,6 +26,8 @@ REQUIRED=(DOKPLOY_URL TF_STATE_BUCKET R2_BACKUP_BUCKET_PROD R2_BACKUP_BUCKET_STA
   R2_BACKUP_PROD_ACCESS_KEY_ID R2_BACKUP_PROD_SECRET_ACCESS_KEY
   R2_BACKUP_STAGING_ACCESS_KEY_ID R2_BACKUP_STAGING_SECRET_ACCESS_KEY)
 OPTIONAL=(GHCR_TOKEN NODE_SSH_PRIVATE_KEY CF_API_TOKEN CF_ACCOUNT_ID CF_ZONE_ID APP_REPOS_READ_TOKEN RESEND_ADMIN_API_KEY)
+# Once the zones/ credentials are there, its workflow can run.
+ZONES_READY=$(for k in CF_API_TOKEN CF_ACCOUNT_ID RESEND_ADMIN_API_KEY; do [ -n "$(get $k)" ] || echo no; done)
 VARIABLES=(DOKPLOY_URL TF_STATE_BUCKET R2_BACKUP_BUCKET_PROD R2_BACKUP_BUCKET_STAGING GHCR_USERNAME NODE_SSH_PUBLIC_KEY)
 if $APP_MODE; then
   # The secrets the reusable deploy workflow reads through `secrets: inherit`.
@@ -58,4 +60,7 @@ elif [ ${#missing[@]} -eq 0 ]; then
   gh variable set PLATFORM_ENABLED -R "$REPO" --body true && echo "✓ variable PLATFORM_ENABLED=true"
 else
   echo "Platform job stays off — missing: ${missing[*]}"
+fi
+if ! $APP_MODE && [ -z "$ZONES_READY" ]; then
+  gh variable set ZONES_ENABLED -R "$REPO" --body true && echo "✓ variable ZONES_ENABLED=true"
 fi

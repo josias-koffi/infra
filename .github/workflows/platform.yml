@@ -2,7 +2,7 @@ name: Platform
 
 on:
   pull_request:
-    paths: [platform/**, modules/**, apps/**, schema/**, scripts/**, examples/**, ansible/**]
+    paths: [platform/**, modules/**, apps/**, zones/**, schema/**, scripts/**, examples/**, ansible/**]
   push:
     branches: [main]
     paths: [platform/**]
@@ -29,14 +29,14 @@ jobs:
           cd modules/dokploy-app
           tofu init -backend=false -input=false
           tofu test
-      - name: apps/env tests (mocked providers and states)
+      - name: apps/env and zones tests (mocked providers and states)
         run: |
-          cd apps/env
-          tofu init -backend=false -input=false
-          tofu test
+          for d in apps/env zones; do
+            (cd $d && tofu init -backend=false -input=false && tofu test)
+          done
       - name: Validate roots
         run: |
-          for d in platform apps/project apps/env; do
+          for d in platform apps/project apps/env zones; do
             tofu -chdir=$d init -backend=false -input=false >/dev/null
             tofu -chdir=$d validate
           done

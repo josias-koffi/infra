@@ -57,6 +57,17 @@ def semantic_errors(m):
         for s in c.get("secrets", []):
             if s not in secrets:
                 errs.append(f"{name}.secrets: '{s}' not declared in secrets or generate")
+    # Names an add-on injects: a secret of the same name would override them.
+    injected = set()
+    for k, b in buckets.items():
+        p = b.get("envPrefix", "S3")
+        injected |= {f"{p}_{n}" for n in ("ENDPOINT", "BUCKET", "REGION", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "FORCE_PATH_STYLE")}
+    if m.get("mail") is not None:
+        injected |= {"RESEND_API_KEY", "MAIL_DOMAIN", "SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD"}
+        if m.get("dns", "cloudflare") == "external" and not m["mail"].get("domain"):
+            errs.append("mail.domain is required with dns: external")
+    for s in sorted(secrets & injected):
+        errs.append(f"secrets: '{s}' is injected by an add-on (buckets/mail) — remove it from the secrets")
     for s in sorted(typed & generated):
         errs.append(f"generate: '{s}' is also in secrets/optionalSecrets — infra generates it, nobody types it")
     for s in sorted(secrets & RESERVED):

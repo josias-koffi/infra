@@ -7,6 +7,11 @@
 #                only read and write that bucket. Injected, with envPrefix S3:
 #                S3_ENDPOINT, S3_BUCKET, S3_REGION, S3_ACCESS_KEY_ID,
 #                S3_SECRET_ACCESS_KEY, S3_FORCE_PATH_STYLE.
+#
+# mail           a Resend key that can only send, from one domain of
+#                zones/zones.yaml (default: the zone of the env's first domain).
+#                Injected: RESEND_API_KEY, MAIL_DOMAIN, and SMTP_HOST/PORT/USER/
+#                PASSWORD for the apps that speak SMTP.
 # ==============================================================================
 
 locals {
@@ -25,7 +30,14 @@ locals {
     : "https://${var.cf_account_id}.${b.jurisdiction}.r2.cloudflarestorage.com"
   }
 
-  addons = {
+  mail_spec = try(local.spec.mail, null)
+  # Default sending domain: the zone of the first domain of the environment.
+  # (dns: external apps write mail.domain: their zones are not looked up.)
+  mail_domain   = local.mail_spec == null ? null : try(local.mail_spec.domain, local.zone_name_for[sort(keys(local.zone_name_for))[0]], null)
+  mail_domains  = try(data.terraform_remote_state.zones[0].outputs.mail_domains, {})
+  mail_key_name = "${local.app} ${var.environment} (infra apps/env)"
+
+  addons = merge({
     for k, b in local.buckets : k => {
       "${b.prefix}_ENDPOINT"          = local.r2_endpoint[k]
       "${b.prefix}_BUCKET"            = cloudflare_r2_bucket.this[k].name
@@ -34,7 +46,16 @@ locals {
       "${b.prefix}_ACCESS_KEY_ID"     = cloudflare_account_token.bucket[k].id
       "${b.prefix}_SECRET_ACCESS_KEY" = sha256(cloudflare_account_token.bucket[k].value)
     }
-  }
+    }, local.mail_spec == null ? {} : {
+    mail = {
+      RESEND_API_KEY = jsondecode(restapi_object.mail_key[0].create_response).token
+      MAIL_DOMAIN    = local.mail_domain
+      SMTP_HOST      = "smtp.resend.com"
+      SMTP_PORT      = "587"
+      SMTP_USER      = "resend"
+      SMTP_PASSWORD  = jsondecode(restapi_object.mail_key[0].create_response).token
+    }
+  })
 }
 
 data "cloudflare_account_api_token_permission_groups" "r2_bucket_write" {
@@ -83,4 +104,45 @@ import {
   for_each = try(local.adopt.buckets, {})
   to       = cloudflare_r2_bucket.this[each.key]
   id       = "${var.cf_account_id}/${each.value}/${local.buckets[each.key].jurisdiction}"
+}
+
+data "terraform_remote_state" "zones" {
+  count   = local.mail_spec != null ? 1 : 0
+  backend = "s3"
+  config = {
+    bucket                      = var.state_bucket
+    key                         = "zones/zones.tfstate"
+    region                      = "auto"
+    use_path_style              = true
+    skip_credentials_validation = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+    skip_s3_checksum            = true
+  }
+}
+
+# Resend shows a key's token once, in the answer to its creation: it is kept
+# from create_response. Resend has no read by id, so the key is found back by
+# its name in the list of keys.
+resource "restapi_object" "mail_key" {
+  count = local.mail_spec != null ? 1 : 0
+
+  path = "/api-keys"
+  data = jsonencode({
+    name       = local.mail_key_name
+    permission = "sending_access"
+    domain_id  = try(local.mail_domains[local.mail_domain].id, "")
+  })
+  read_path   = "/api-keys"
+  read_search = { results_key = "data", search_key = "name", search_value = local.mail_key_name }
+  # Keys cannot be edited: any change makes a new one.
+  ignore_all_server_changes = true
+  force_new                 = ["name", "permission", "domain_id"]
+
+  lifecycle {
+    precondition {
+      condition     = contains(keys(local.mail_domains), coalesce(local.mail_domain, "-"))
+      error_message = "mail: ${coalesce(local.mail_domain, "no domain")} is not a sending domain yet — add it to zones/zones.yaml (mail:) and apply zones/ first."
+    }
+  }
 }

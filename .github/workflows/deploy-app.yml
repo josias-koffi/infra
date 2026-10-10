@@ -112,6 +112,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+          RESEND_ADMIN_API_KEY: ${{ secrets.RESEND_ADMIN_API_KEY }}
           SECRETS_JSON: ${{ toJSON(secrets) }}
         run: |
           infra/scripts/deploy-app.sh "app/${{ inputs.manifest }}" \

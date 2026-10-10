@@ -1,0 +1,42 @@
+# zones/ — sending domains (Resend) and their DNS records, from zones/zones.yaml.
+# Plans on a pull request, applies on main. Off until ZONES_ENABLED=true (repo
+# variable), once CF_API_TOKEN, CF_ACCOUNT_ID and RESEND_ADMIN_API_KEY are set.
+name: Zones
+
+on:
+  pull_request:
+    paths: [zones/**]
+  push:
+    branches: [main]
+    paths: [zones/**]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zones
+  cancel-in-progress: false
+
+jobs:
+  zones:
+    if: vars.ZONES_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name != 'pull_request' && 'production' || '' }}
+    env:
+      AWS_ENDPOINT_URL_S3: ${{ secrets.R2_ENDPOINT }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      TF_VAR_cf_account_id: ${{ secrets.CF_ACCOUNT_ID }}
+      TF_VAR_resend_api_key: ${{ secrets.RESEND_ADMIN_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with: { tofu_version: 1.12.3, tofu_wrapper: false }
+      - run: tofu -chdir=zones init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+      - name: Plan
+        run: tofu -chdir=zones plan -input=false -out=tfplan
+      - name: Apply
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: tofu -chdir=zones apply -input=false tfplan

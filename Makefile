@@ -10,6 +10,7 @@ export AWS_ACCESS_KEY_ID=$(R2_ACCESS_KEY_ID)
 export AWS_SECRET_ACCESS_KEY=$(R2_SECRET_ACCESS_KEY)
 export CLOUDFLARE_API_TOKEN=$(CF_API_TOKEN)
 export TF_VAR_cf_account_id=$(CF_ACCOUNT_ID)
+export TF_VAR_resend_api_key=$(RESEND_ADMIN_API_KEY)
 export TF_VAR_dokploy_endpoint=$(DOKPLOY_URL)
 export TF_VAR_state_bucket=$(TF_STATE_BUCKET)
 export TF_VAR_r2_endpoint=$(R2_ENDPOINT)
@@ -20,7 +21,7 @@ export TF_VAR_ghcr_token=$(GHCR_TOKEN)
 export TF_VAR_node_ssh_public_key=$(NODE_SSH_PUBLIC_KEY)
 export TF_VAR_node_ssh_private_key=$(NODE_SSH_PRIVATE_KEY)
 
-.PHONY: help setup-manager add-node node-key platform-plan platform-apply app-plan app-deploy test
+.PHONY: help setup-manager add-node node-key platform-plan platform-apply zones-plan zones-apply app-plan app-deploy test
 
 help: ## List commands
 	@grep -hE '^[a-z-]+:.*## ' Makefile | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -43,6 +44,12 @@ platform-plan: ## Plan the Dokploy instance (settings, backup destinations, node
 platform-apply: ## Apply the Dokploy instance configuration
 	@tofu -chdir=platform init -input=false -reconfigure -backend-config="bucket=$(TF_STATE_BUCKET)" >/dev/null && tofu -chdir=platform apply
 
+zones-plan: ## Plan zones/ (sending domains and their records, zones/zones.yaml)
+	@tofu -chdir=zones init -input=false -reconfigure -backend-config="bucket=$(TF_STATE_BUCKET)" >/dev/null && tofu -chdir=zones plan
+
+zones-apply: ## Apply zones/
+	@tofu -chdir=zones init -input=false -reconfigure -backend-config="bucket=$(TF_STATE_BUCKET)" >/dev/null && tofu -chdir=zones apply
+
 app-plan: ## Plan one env of an app. MANIFEST=… ENV=staging [TAG=…]
 	@test -n "$(MANIFEST)" -a -n "$(ENV)" || (echo "MANIFEST= and ENV= are required" && exit 1)
 	@scripts/deploy-app.sh $(MANIFEST) $(ENV) $(or $(TAG),current) plan
@@ -55,4 +62,5 @@ test: ## Validate manifests, run the module tests, validate every root
 	@scripts/validate-manifest.py examples/*/.deploy/manifest.yaml modules/dokploy-app/tests/fixtures/*.yaml modules/dokploy-app/tests/fixtures/*/.deploy/manifest.yaml apps/env/tests/fixtures/*/.deploy/manifest.yaml
 	@cd modules/dokploy-app && tofu init -backend=false -input=false >/dev/null && tofu test
 	@cd apps/env && tofu init -backend=false -input=false >/dev/null && tofu test
-	@for d in platform apps/project apps/env; do tofu -chdir=$$d init -backend=false -input=false >/dev/null && tofu -chdir=$$d validate >/dev/null && echo "✓ $$d"; done
+	@cd zones && tofu init -backend=false -input=false >/dev/null && tofu test
+	@for d in platform apps/project apps/env zones; do tofu -chdir=$$d init -backend=false -input=false >/dev/null && tofu -chdir=$$d validate >/dev/null && echo "✓ $$d"; done

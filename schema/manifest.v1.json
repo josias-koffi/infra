@@ -123,6 +123,18 @@
         }
       }
     },
+    "mail": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Sending mail through Resend: a key that can only send, from one domain of zones/zones.yaml. A component gets RESEND_API_KEY, MAIL_DOMAIN and SMTP_* through `uses: [mail]`.",
+      "properties": {
+        "domain": {
+          "type": "string",
+          "format": "hostname",
+          "description": "Sending domain (default: the zone of the environment's first domain; required with dns: external)."
+        }
+      }
+    },
     "compose": {
       "type": "object",
       "additionalProperties": false,

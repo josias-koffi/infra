@@ -27,6 +27,7 @@ Complétion dans l'éditeur, en première ligne :
 | `databases` | map | | bases de données |
 | `caches` | map | | Redis |
 | `buckets` | map | | stockage objet R2 créé par infra (voir [Buckets](#buckets)) |
+| `mail` | objet | | envoi de mails par Resend, clé créée par infra (voir [Mail](#mail)) |
 | `compose` | objet | | mode compose |
 | `backups` | objet | activées | voir [sauvegardes](../guides/backups-and-restore.md) |
 | `environments` | map | requis | un environnement Dokploy par clé |
@@ -57,6 +58,7 @@ Complétion dans l'éditeur, en première ligne :
 |---|---|
 | une base (`databases.db`) | `DATABASE_HOST`, `_PORT`, `_NAME`, `_USER`, `_PASSWORD`, `_URL` (préfixe modifiable avec `envPrefix`) |
 | un cache (`caches.cache`) | `REDIS_HOST`, `_PORT`, `_PASSWORD`, `_URL` |
+| `mail` | `RESEND_API_KEY`, `MAIL_DOMAIN`, et pour les apps SMTP `SMTP_HOST=smtp.resend.com`, `SMTP_PORT=587`, `SMTP_USER=resend`, `SMTP_PASSWORD` |
 | un bucket (`buckets.medias`) | `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION=auto`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE=true` (préfixe modifiable avec `envPrefix`) |
 | une autre app ou un worker | `<APP>_URL=https://<son domaine>` (s'il en a un) et `<APP>_INTERNAL_URL=http://<app>-<env>-<composant>:<port>` (s'il a un `port`) : alias stable sur `dokploy-network`, pour les appels côté serveur sans repasser par Traefik ni exposer de route |
 
@@ -109,6 +111,29 @@ Le déploiement refuse un plan qui supprime un bucket (comme une base). Un
 bucket créé à la main se reprend avec
 `apps/adopt/<app>.yaml` → `environments.<env>.buckets.<clé>: <nom>` ; sa
 juridiction doit être celle du manifest.
+
+## Mail
+
+```yaml
+mail: {}                       # domaine : la zone du premier domaine de l'environnement
+# mail: { domain: ouiti.com }  # explicite (obligatoire avec dns: external)
+apps:
+  api: { uses: [mail], … }
+```
+
+Chaque environnement reçoit **sa propre clé Resend**, qui ne peut
+qu'envoyer, et seulement depuis ce domaine. Rien à saisir.
+
+Le domaine d'envoi est partagé entre apps et environnements : il se déclare
+une fois dans [`zones/zones.yaml`](../../zones/zones.yaml) (`mail:`), et la
+pile `zones/` le crée chez Resend (région `eu-west-1` par défaut), pose les
+enregistrements DKIM, SPF et DMARC dans sa zone Cloudflare et demande la
+vérification. Un enregistrement qu'un autre propriétaire tient déjà n'est
+jamais doublé : il est laissé en place et listé. Un domaine déjà créé chez
+Resend s'adopte avec `resendId`.
+
+RGPD : `eu-west-1` envoie depuis l'Irlande, mais Resend garde les données du
+compte (journaux, métadonnées) aux États-Unis.
 
 ## Secrets générés
 

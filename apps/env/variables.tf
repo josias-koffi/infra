@@ -48,6 +48,13 @@ variable "cf_zone_id" {
   default     = ""
 }
 
+variable "resend_api_key" {
+  type        = string
+  description = "Resend API key with full access (RESEND_ADMIN_API_KEY): issues the sending keys of the add-on mail."
+  default     = ""
+  sensitive   = true
+}
+
 variable "dns_imports" {
   type        = map(string)
   description = "Records carrying our comment that the state lacks, as key => \"zone_id/record_id\" (set by scripts/deploy-app.sh from scripts/check-dns.py)."
