@@ -1,0 +1,24 @@
+# Test fixture: an API served under several prefixes of the web's domain, and
+# called server-side by the web over the overlay network.
+apiVersion: deploy/v1
+name: shared
+mode: services
+secrets: [DB_PASSWORD]
+apps:
+  web:
+    image: ghcr.io/example/shared-web
+    port: 3000
+    domain: site
+    uses: [api]
+    secrets: []
+  api:
+    image: ghcr.io/example/shared-api
+    port: 3001
+    domain: site
+    paths: [/trpc, /api/auth]
+    uses: [db]
+databases:
+  db: { type: postgres, version: 17-alpine, database: shared, user: shared }
+environments:
+  staging:
+    domains: { site: shared-staging.example.com }
