@@ -15,7 +15,7 @@ terraform {
     }
     cloudflare = {
       source  = "cloudflare/cloudflare"
-      version = "~> 4.0"
+      version = "~> 5.26"
     }
   }
 
@@ -143,15 +143,26 @@ module "app" {
 
 # DNS: one A record per domain of the env, to the node that runs it. Apps whose
 # records still live elsewhere set `dns: external` until they are adopted.
-resource "cloudflare_record" "domains" {
+resource "cloudflare_dns_record" "domains" {
   for_each = try(local.manifest.dns, "cloudflare") == "cloudflare" ? try(local.env_spec.domains, {}) : {}
 
   zone_id = var.cf_zone_id
   name    = each.value
   type    = "A"
   content = local.node.ip
+  ttl     = 1     # automatic
   proxied = false # Let's Encrypt HTTP challenge on the Dokploy Traefik
   comment = "${local.app} ${var.environment} — infra apps/env"
+}
+
+# Records that carry our comment but are missing from the state are imported
+# back (scripts/check-dns.py finds them). This is how the v4 -> v5 type rename
+# is migrated: deploy-app.sh drops cloudflare_record from the state, which
+# OpenTofu cannot decode with the v5 provider, and the records come back here.
+import {
+  for_each = var.dns_imports
+  to       = cloudflare_dns_record.domains[each.key]
+  id       = each.value
 }
 
 # --- One-shot adoption (apps/adopt/<name>.yaml) ------------------------------
@@ -181,6 +192,6 @@ import {
 
 import {
   for_each = try(local.adopt.dnsRecords, {})
-  to       = cloudflare_record.domains[each.key]
+  to       = cloudflare_dns_record.domains[each.key]
   id       = "${var.cf_zone_id}/${each.value}"
 }

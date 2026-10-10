@@ -75,6 +75,9 @@ jobs:
         working-directory: infra/apps/env
         run: |
           tofu init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="key=apps/${{ steps.app.outputs.name }}/${{ inputs.environment }}.tfstate"
+          # A state never deployed since the Cloudflare v5 upgrade: its records are
+          # listed here and stay in the zone (delete them by hand).
+          "$GITHUB_WORKSPACE/infra/scripts/migrate-env-state.sh" .
           tofu plan -destroy -input=false -out=destroy.tfplan \
             -var manifest_path="$GITHUB_WORKSPACE/app/.deploy/manifest.yaml" \
             -var environment="${{ inputs.environment }}" -var image_tag=purge

@@ -7,7 +7,10 @@ comment) or declared in apps/adopt/<app>.yaml (environments.<env>.dnsRecords).
 Otherwise the apply would add a second record next to the one another state
 (koklo-infra, an app's own terraform…) manages.
 
-    scripts/check-dns.py <manifest> <environment>
+    scripts/check-dns.py <manifest> <environment> [<imports.json>]
+
+With a third argument, writes the records that carry our comment as
+{"<key>": "<zone_id>/<record_id>"}: apps/env imports the ones its state lacks.
 
 Environment: CLOUDFLARE_API_TOKEN, CF_ZONE_ID.
 """
@@ -47,8 +50,11 @@ def cf(path, token):
     return body["result"]
 
 
-def main(manifest_path, environment):
+def main(manifest_path, environment, imports_path=None):
     m = yaml.safe_load(open(manifest_path))
+    owned = {}
+    if imports_path:
+        pathlib.Path(imports_path).write_text("{}")
     if m.get("dns", "cloudflare") != "cloudflare":
         return 0
     domains = m["environments"][environment].get("domains", {})
@@ -66,7 +72,7 @@ def main(manifest_path, environment):
     if adopt_file.exists():
         adopt = (yaml.safe_load(adopt_file.read_text()) or {}).get("environments", {}).get(environment, {})
     adopted = adopt.get("dnsRecords", {})
-    ours = f"{app} {environment} — infra apps/env"  # comment of cloudflare_record.domains
+    ours = f"{app} {environment} — infra apps/env"  # comment of cloudflare_dns_record.domains
 
     zone = cf(f"/zones/{zone_id}", token)["name"]
     errs, foreign = [], False
@@ -78,7 +84,10 @@ def main(manifest_path, environment):
         for r in cf(f"/zones/{zone_id}/dns_records?{q}", token):
             if r["type"] not in ("A", "AAAA", "CNAME"):
                 continue
-            if r.get("comment") == ours or adopted.get(key) == r["id"]:
+            if r.get("comment") == ours:
+                owned[key] = f"{zone_id}/{r['id']}"
+                continue
+            if adopted.get(key) == r["id"]:
                 continue
             foreign = True
             errs.append(f"{key}: {host} already has a {r['type']} record ({r['content']}, id {r['id']}, "
@@ -93,11 +102,13 @@ def main(manifest_path, environment):
                   f"apps/adopt/{app}.yaml → environments.{environment}.dnsRecords.<key>: <id> "
                   "(see docs/guides/deploy-an-app.md#dns)")
         return 1
+    if imports_path:
+        pathlib.Path(imports_path).write_text(json.dumps(owned))
     print(f"✓ DNS — {len(domains)} domain(s) of {app}/{environment} in {zone}, no foreign record")
     return 0
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) not in (3, 4):
         sys.exit(__doc__)
     sys.exit(main(*sys.argv[1:]))

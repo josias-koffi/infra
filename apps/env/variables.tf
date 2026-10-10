@@ -42,6 +42,12 @@ variable "cf_zone_id" {
   default     = ""
 }
 
+variable "dns_imports" {
+  type        = map(string)
+  description = "Records carrying our comment that the state lacks, as key => \"zone_id/record_id\" (set by scripts/deploy-app.sh from scripts/check-dns.py)."
+  default     = {}
+}
+
 variable "project_state_exists" {
   type        = bool
   description = "False only in a plan-only run before apps/project was ever applied (set by scripts/deploy-app.sh)."

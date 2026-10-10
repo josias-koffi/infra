@@ -29,7 +29,9 @@ m = yaml.safe_load(open(sys.argv[1]))
 if sys.argv[2] not in m["environments"]:
     sys.exit(f"environment '{sys.argv[2]}' is not declared in {sys.argv[1]}")
 PY
-python3 "$ROOT/scripts/check-dns.py" "$MANIFEST" "$ENVIRONMENT"
+DNS_OWNED=$(mktemp)
+trap 'rm -f "$DNS_OWNED"' EXIT
+python3 "$ROOT/scripts/check-dns.py" "$MANIFEST" "$ENVIRONMENT" "$DNS_OWNED"
 
 echo "::group::${APP} — project (apps/${APP}/project.tfstate)"
 tofu -chdir="$ROOT/apps/project" init -input=false -reconfigure \
@@ -50,6 +52,13 @@ export TF_VAR_secrets_json="${SECRETS_JSON:-{\}}"
 export TF_VAR_cf_zone_id="${CF_ZONE_ID:-}"
 tofu -chdir="$ROOT/apps/env" init -input=false -reconfigure \
   -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="key=apps/${APP}/${ENVIRONMENT}.tfstate" >/dev/null
+"$ROOT/scripts/migrate-env-state.sh" "$ROOT/apps/env"
+# Records carrying our comment that the state lacks are imported.
+in_state=$(tofu -chdir="$ROOT/apps/env" state list 2>/dev/null | sed -n 's/^cloudflare_dns_record\.domains\["\(.*\)"\]$/\1/p' | paste -sd, -)
+export TF_VAR_dns_imports=$(python3 -c '
+import json, sys
+owned = json.load(open(sys.argv[1]))
+print(json.dumps({k: v for k, v in owned.items() if k not in sys.argv[2].split(",")}))' "$DNS_OWNED" "$in_state")
 # -detailed-exitcode: 0 = no change, 1 = error, 2 = changes to apply.
 set +e
 tofu -chdir="$ROOT/apps/env" plan -input=false -detailed-exitcode -out=tfplan \
