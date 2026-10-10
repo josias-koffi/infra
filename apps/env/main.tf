@@ -123,8 +123,8 @@ check "secrets_present" {
 module "app" {
   source = "../../modules/dokploy-app"
 
-  app            = local.app
-  environment    = var.environment
+  app         = local.app
+  environment = var.environment
   # The placeholder only appears in a plan-only run before the first project
   # apply; a real deploy applies apps/project first.
   environment_id = try(data.terraform_remote_state.project[0].outputs.environment_ids[var.environment], "(created by apps/project)")
