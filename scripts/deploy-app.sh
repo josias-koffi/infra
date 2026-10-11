@@ -57,7 +57,8 @@ tofu -chdir="$ROOT/apps/env" init -input=false -reconfigure \
   -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="key=apps/${APP}/${ENVIRONMENT}.tfstate" >/dev/null
 "$ROOT/scripts/migrate-env-state.sh" "$ROOT/apps/env"
 # Records carrying our comment that the state lacks are imported.
-in_state=$(tofu -chdir="$ROOT/apps/env" state list 2>/dev/null | sed -n 's/^cloudflare_dns_record\.domains\["\(.*\)"\]$/\1/p' | paste -sd, -)
+# A first deploy has no state yet: `state list` fails, and nothing is in it.
+in_state=$({ tofu -chdir="$ROOT/apps/env" state list 2>/dev/null || true; } | sed -n 's/^cloudflare_dns_record\.domains\["\(.*\)"\]$/\1/p' | paste -sd, -)
 export TF_VAR_dns_imports=$(python3 -c '
 import json, sys
 owned = json.load(open(sys.argv[1]))
