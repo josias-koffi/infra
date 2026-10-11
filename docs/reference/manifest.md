@@ -130,7 +130,8 @@ pile `zones/` le crée chez Resend (région `eu-west-1` par défaut), pose les
 enregistrements DKIM, SPF et DMARC dans sa zone Cloudflare et demande la
 vérification. Un enregistrement qu'un autre propriétaire tient déjà n'est
 jamais doublé : il est laissé en place et listé. Un domaine déjà créé chez
-Resend s'adopte avec `resendId`.
+Resend (fait à la main) est retrouvé par son nom et adopté tel quel : jamais
+recréé ni remplacé.
 
 RGPD : `eu-west-1` envoie depuis l'Irlande, mais Resend garde les données du
 compte (journaux, métadonnées) aux États-Unis.

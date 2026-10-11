@@ -48,7 +48,7 @@ platform-apply: ## Apply the Dokploy instance configuration
 zones-plan: ## Plan zones/ (sending domains and their records, zones/zones.yaml)
 	@tofu -chdir=zones init -input=false -reconfigure -backend-config="bucket=$(TF_STATE_BUCKET)" >/dev/null && tofu -chdir=zones plan
 
-zones-apply: ## Apply zones/
+zones-apply: ## Apply zones/ (after adding a domain, a second apply writes its records)
 	@tofu -chdir=zones init -input=false -reconfigure -backend-config="bucket=$(TF_STATE_BUCKET)" >/dev/null && tofu -chdir=zones apply
 
 app-plan: ## Plan one env of an app. MANIFEST=… ENV=staging [TAG=…]

@@ -40,3 +40,11 @@ jobs:
       - name: Apply
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: tofu -chdir=zones apply -input=false tfplan
+      # The records of a domain this apply created are read from Resend on the
+      # next plan: say so rather than apply a plan nobody saw.
+      - name: Anything left
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          rc=0; tofu -chdir=zones plan -input=false -detailed-exitcode >/dev/null || rc=$?
+          [ "$rc" -ne 1 ] || exit 1
+          [ "$rc" -eq 0 ] || echo "::warning::New sending domain: run Zones again (workflow_dispatch) to write its DNS records."

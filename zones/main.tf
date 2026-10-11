@@ -24,6 +24,10 @@ terraform {
       source  = "Mastercard/restapi"
       version = "~> 2.0"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.4"
+    }
   }
 
   backend "s3" {
@@ -67,38 +71,48 @@ locals {
       region      = try(m.region, "eu-west-1")
       return_path = try(m.returnPath, "send")
       dmarc       = try(m.dmarc, "v=DMARC1; p=none;")
-      resend_id   = try(m.resendId, null)
+      resend_id   = try(m.resendId, local.resend_existing[d].id, null)
       zone_id     = try(local.zones[local.zone_of[d]], null)
     }
   }
   ours = "zones — infra"
 
-  # What Resend asks for, from its answer about the domain. The names are fixed
-  # (resend._domainkey, <returnPath>), so what exists already is known at plan.
-  resend_records = { for d, _ in local.mail : d => try(jsondecode(restapi_object.mail_domain[d].api_response).records, []) }
-  wanted = merge([
-    for d, m in local.mail : {
-      "${d}/dkim" = {
-        domain  = d, zone_id = m.zone_id, name = "resend._domainkey.${d}", type = "TXT", priority = null
-        content = try([for r in local.resend_records[d] : r.value if r.record == "DKIM"][0], "")
+  # Domains already in the Resend account (made by hand, or by an earlier run):
+  # adopted as they are, never created a second time.
+  resend_existing = nonsensitive(var.resend_api_key == "") ? {} : {
+    for r in try(jsondecode(data.http.resend_domains[0].response_body).data, []) : r.name => r
+  }
+  resend_ids = { for d, m in local.mail : d => m.resend_id if m.resend_id != null }
+
+  # What Resend asks for, exactly as it lists it (its layout changes: MX + TXT
+  # on the return path before, two CNAMEs now). Read from the domain as it
+  # exists, so the records are known at plan; a domain created by this run
+  # gets them on the next apply (zones.yml applies twice).
+  resend_records = { for d, _ in local.resend_ids : d => try(jsondecode(data.http.resend_domain[d].response_body).records, []) }
+  wanted = merge(
+    merge([
+      for d, rs in local.resend_records : {
+        for r in rs : "${d}/${lower(r.record)}/${r.type}/${r.name}" => {
+          domain   = d
+          zone_id  = local.mail[d].zone_id
+          name     = contains(["", "@"], r.name) ? d : endswith(r.name, d) ? r.name : "${r.name}.${d}"
+          type     = r.type
+          content  = r.value
+          priority = r.type == "MX" ? try(tonumber(r.priority), 10) : null
+        }
       }
-      "${d}/spf-mx" = {
-        domain  = d, zone_id = m.zone_id, name = "${m.return_path}.${d}", type = "MX", priority = 10
-        content = try([for r in local.resend_records[d] : r.value if r.record == "SPF" && r.type == "MX"][0], "")
-      }
-      "${d}/spf-txt" = {
-        domain  = d, zone_id = m.zone_id, name = "${m.return_path}.${d}", type = "TXT", priority = null
-        content = try([for r in local.resend_records[d] : r.value if r.record == "SPF" && r.type == "TXT"][0], "")
-      }
-      "${d}/dmarc" = {
+    ]...),
+    {
+      for d, m in local.mail : "${d}/dmarc" => {
         domain = d, zone_id = m.zone_id, name = "_dmarc.${d}", type = "TXT", priority = null, content = m.dmarc
       }
-    }
-  ]...)
+    },
+  )
 
   # A record another owner already holds on that name (koklo-infra, an app's
   # own terraform, the console) is left alone: never a second DKIM or DMARC.
-  # A DMARC counts only if it starts with v=DMARC1; the others must match.
+  # A DMARC counts only if it starts with v=DMARC1; the others must match
+  # (Cloudflare returns a TXT content quoted).
   foreign = {
     for k, r in local.wanted : k => [
       for e in data.cloudflare_dns_records.existing[k].result : e
@@ -125,21 +139,60 @@ data "cloudflare_zones" "all" {
   status  = "active"
 }
 
+data "http" "resend_domains" {
+  count = nonsensitive(var.resend_api_key == "") ? 0 : 1
+
+  url             = "https://api.resend.com/domains"
+  request_headers = { Authorization = "Bearer ${var.resend_api_key}" }
+
+  lifecycle {
+    postcondition {
+      condition     = self.status_code == 200
+      error_message = "Resend refused to list the domains (HTTP ${self.status_code}): RESEND_ADMIN_API_KEY must have full access."
+    }
+  }
+}
+
+data "http" "resend_domain" {
+  for_each = local.resend_ids
+
+  url             = "https://api.resend.com/domains/${each.value}"
+  request_headers = { Authorization = "Bearer ${var.resend_api_key}" }
+
+  lifecycle {
+    postcondition {
+      condition     = self.status_code == 200
+      error_message = "Resend has no domain ${each.value} (${each.key}): fix resendId in zones.yaml (HTTP ${self.status_code})."
+    }
+  }
+}
+
 resource "restapi_object" "mail_domain" {
   for_each = local.mail
 
   path = "/domains"
   data = jsonencode({ name = each.key, region = each.value.region, custom_return_path = each.value.return_path })
   # Resend answers with many more fields (status, records…): only existence
-  # matters; name, region and return path cannot change in place.
+  # matters. A domain is never updated, nor replaced: region and return path
+  # cannot change in place, and replacing it would drop its verification (and
+  # an adopted domain carries none of these arguments in its state).
   ignore_all_server_changes = true
-  force_new                 = ["name", "region", "custom_return_path"]
 
   lifecycle {
+    ignore_changes = all
     precondition {
       condition     = each.value.zone_id != null
       error_message = "${each.key} is in no zone of the Cloudflare account: add it to Cloudflare first."
     }
+  }
+}
+
+check "mail_domain_region" {
+  assert {
+    condition = alltrue([
+      for d, m in local.mail : try(jsondecode(restapi_object.mail_domain[d].api_response).region, m.region) == m.region
+    ])
+    error_message = "A sending domain is not in the region of zones.yaml: ${join(", ", [for d, m in local.mail : "${d} (${try(jsondecode(restapi_object.mail_domain[d].api_response).region, "?")})" if try(jsondecode(restapi_object.mail_domain[d].api_response).region, m.region) != m.region])}. Resend cannot move a domain: delete it in Resend to have it recreated, or write its region in zones.yaml."
   }
 }
 
@@ -166,8 +219,8 @@ resource "cloudflare_dns_record" "mail" {
 check "foreign_mail_records_match" {
   assert {
     condition = alltrue([
-      for k, es in local.foreign : alltrue([for e in es : e.content == local.wanted[k].content])
-      if !endswith(k, "/dmarc") && local.wanted[k].content != ""
+      for k, es in local.foreign : alltrue([for e in es : trim(e.content, "\"") == local.wanted[k].content])
+      if !endswith(k, "/dmarc")
     ])
     error_message = "A Resend record held by another owner differs from what Resend asks for: ${join(", ", [for k, es in local.foreign : local.wanted[k].name if length(es) > 0 && !endswith(k, "/dmarc")])}. Fix it where it is managed, or remove it so that zones/ creates it."
   }
@@ -205,17 +258,18 @@ data "cloudflare_dns_records" "apex_spf" {
   type    = "TXT"
 }
 
-# Turns Email Routing on and writes its MX and SPF records at the apex.
+# Turns Email Routing on and writes its MX and SPF records at the apex. No
+# name: the API takes one only for a subdomain of the zone.
 resource "cloudflare_email_routing_dns" "this" {
   for_each = local.routing_zones
 
   zone_id = each.value
-  name    = each.key
 }
 
-# A sending domain created by hand: zones.yaml → mail.<domain>.resendId.
+# A sending domain already in Resend: found by its name, or zones.yaml →
+# mail.<domain>.resendId. Importing one that is already in the state is a no-op.
 import {
-  for_each = { for d, m in local.mail : d => m.resend_id if m.resend_id != null }
+  for_each = var.adopt_resend_domains ? local.resend_ids : {}
   to       = restapi_object.mail_domain[each.key]
   id       = "/domains/${each.value}"
 }

@@ -16,3 +16,9 @@ variable "resend_api_key" {
   default     = ""
   sensitive   = true
 }
+
+variable "adopt_resend_domains" {
+  type        = bool
+  description = "Import the domains Resend already has. Off only in tests: OpenTofu's mocked providers cannot import."
+  default     = true
+}

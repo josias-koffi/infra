@@ -1,10 +1,13 @@
 # zones/ with mocked providers: which mail records are created, and which are
 # left to the owner that already holds them.
-mock_provider "restapi" {
-  mock_resource "restapi_object" {
+mock_provider "restapi" {}
+# One body for both calls: the list of domains (data) and the domain (records),
+# in Resend's current layout (two CNAMEs on the return path).
+mock_provider "http" {
+  mock_data "http" {
     defaults = {
-      id           = "dom-1"
-      api_response = "{\"records\":[{\"record\":\"DKIM\",\"name\":\"resend._domainkey\",\"type\":\"TXT\",\"value\":\"p=KEY\"},{\"record\":\"SPF\",\"name\":\"send\",\"type\":\"MX\",\"value\":\"feedback-smtp.eu-west-1.amazonses.com\",\"priority\":10},{\"record\":\"SPF\",\"name\":\"send\",\"type\":\"TXT\",\"value\":\"v=spf1 include:amazonses.com ~all\"}]}"
+      status_code   = 200
+      response_body = "{\"data\":[{\"id\":\"dom-1\",\"name\":\"mail.shop.example.com\",\"region\":\"eu-west-1\"}],\"records\":[{\"record\":\"DKIM\",\"name\":\"resend._domainkey\",\"type\":\"TXT\",\"value\":\"p=KEY\"},{\"record\":\"SPF\",\"name\":\"send\",\"type\":\"CNAME\",\"value\":\"send.forge.rmta.net\"},{\"record\":\"SPF\",\"name\":\"rsend\",\"type\":\"CNAME\",\"value\":\"rsend-euw1.forge.rmta.net\"}]}"
     }
   }
 }
@@ -38,38 +41,44 @@ mock_provider "cloudflare" {
 }
 
 variables {
-  config_path = "./tests/fixture.yaml"
+  config_path    = "./tests/fixture.yaml"
+  resend_api_key       = "re_test"
+  adopt_resend_domains = false # mocked providers cannot import
 }
 
 run "records_created_in_the_zone" {
   command   = apply
-  providers = { cloudflare = cloudflare.empty, restapi = restapi }
+  providers = { cloudflare = cloudflare.empty, restapi = restapi, http = http }
 
   assert {
-    condition     = cloudflare_dns_record.mail["mail.shop.example.com/dkim"].zone_id == "zone-shop" && cloudflare_dns_record.mail["mail.shop.example.com/dkim"].name == "resend._domainkey.mail.shop.example.com" && cloudflare_dns_record.mail["mail.shop.example.com/dkim"].content == "p=KEY"
+    condition     = cloudflare_dns_record.mail["mail.shop.example.com/dkim/TXT/resend._domainkey"].zone_id == "zone-shop" && cloudflare_dns_record.mail["mail.shop.example.com/dkim/TXT/resend._domainkey"].name == "resend._domainkey.mail.shop.example.com" && cloudflare_dns_record.mail["mail.shop.example.com/dkim/TXT/resend._domainkey"].content == "p=KEY"
     error_message = "DKIM from Resend's answer, in the zone with the longest suffix"
   }
   assert {
-    condition     = cloudflare_dns_record.mail["mail.shop.example.com/spf-mx"].priority == 10 && cloudflare_dns_record.mail["mail.shop.example.com/spf-mx"].name == "send.mail.shop.example.com"
-    error_message = "bounce MX on the return path"
+    condition     = cloudflare_dns_record.mail["mail.shop.example.com/spf/CNAME/send"].name == "send.mail.shop.example.com" && cloudflare_dns_record.mail["mail.shop.example.com/spf/CNAME/rsend"].content == "rsend-euw1.forge.rmta.net" && length(cloudflare_dns_record.mail) == 4
+    error_message = "every record Resend lists, whatever its type, and the DMARC"
   }
   assert {
     condition     = cloudflare_dns_record.mail["mail.shop.example.com/dmarc"].content == "v=DMARC1; p=none;"
     error_message = "default DMARC when the domain has none"
   }
   assert {
-    condition     = output.mail_domains["mail.shop.example.com"].id == "dom-1" && output.mail_domains["mail.shop.example.com"].region == "eu-west-1"
+    condition     =  output.mail_domains["mail.shop.example.com"].region == "eu-west-1"
     error_message = "apps/env reads the domain id; EU region by default"
   }
   assert {
     condition     = jsonencode(output.email_routing_zones) == jsonencode(["example.com", "shop.example.com"])
     error_message = "Email Routing on in every zone with no mail setup of its own"
   }
+  assert {
+    condition     = alltrue([for r in cloudflare_email_routing_dns.this : r.name == null])
+    error_message = "Email Routing at the apex: no name (the API takes one only for a subdomain)"
+  }
 }
 
 run "records_held_elsewhere_are_left_alone" {
   command   = apply
-  providers = { cloudflare = cloudflare.taken, restapi = restapi }
+  providers = { cloudflare = cloudflare.taken, restapi = restapi, http = http }
   # The other owner's DKIM/SPF differ from Resend's answer: the check warns.
   expect_failures = [check.foreign_mail_records_match]
 
