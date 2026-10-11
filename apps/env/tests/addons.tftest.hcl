@@ -17,9 +17,9 @@ mock_provider "cloudflare" {
       ]
     }
   }
-  mock_data "cloudflare_account_api_token_permission_groups" {
+  mock_data "cloudflare_account_api_token_permission_groups_list" {
     defaults = {
-      permission_groups = [{ id = "pg-r2-write", name = "Workers R2 Storage Bucket Item Write", scopes = ["com.cloudflare.edge.r2.bucket"], category = null, is_selectable = null }]
+      result = [{ id = "pg-r2-write", name = "Workers R2 Storage Bucket Item Write", scopes = ["com.cloudflare.edge.r2.bucket"], category = null, is_selectable = null }]
     }
   }
   mock_resource "cloudflare_account_token" {

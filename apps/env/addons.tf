@@ -58,10 +58,12 @@ locals {
   })
 }
 
-data "cloudflare_account_api_token_permission_groups" "r2_bucket_write" {
+# The _list data source: the single one (cloudflare_account_api_token_permission_groups)
+# returns permission_groups = null in provider 5.27.
+data "cloudflare_account_api_token_permission_groups_list" "r2_bucket_write" {
   count      = length(local.buckets) > 0 ? 1 : 0
   account_id = var.cf_account_id
-  name       = "Workers%20R2%20Storage%20Bucket%20Item%20Write"
+  name       = "Workers R2 Storage Bucket Item Write"
   scope      = "com.cloudflare.edge.r2.bucket"
 }
 
@@ -91,7 +93,7 @@ resource "cloudflare_account_token" "bucket" {
   policies = [{
     effect = "allow"
     permission_groups = [{
-      id = one([for g in data.cloudflare_account_api_token_permission_groups.r2_bucket_write[0].permission_groups : g.id if g.name == "Workers R2 Storage Bucket Item Write"])
+      id = one([for g in data.cloudflare_account_api_token_permission_groups_list.r2_bucket_write[0].result : g.id if g.name == "Workers R2 Storage Bucket Item Write"])
     }]
     resources = jsonencode({
       "com.cloudflare.edge.r2.bucket.${var.cf_account_id}_${each.value.jurisdiction}_${cloudflare_r2_bucket.this[each.key].name}" = "*"
