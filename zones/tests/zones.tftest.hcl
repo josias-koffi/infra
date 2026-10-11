@@ -41,7 +41,7 @@ mock_provider "cloudflare" {
 }
 
 variables {
-  config_path    = "./tests/fixture.yaml"
+  config_path          = "./tests/fixture.yaml"
   resend_api_key       = "re_test"
   adopt_resend_domains = false # mocked providers cannot import
 }
@@ -63,7 +63,7 @@ run "records_created_in_the_zone" {
     error_message = "default DMARC when the domain has none"
   }
   assert {
-    condition     =  output.mail_domains["mail.shop.example.com"].region == "eu-west-1"
+    condition     = output.mail_domains["mail.shop.example.com"].region == "eu-west-1"
     error_message = "apps/env reads the domain id; EU region by default"
   }
   assert {
