@@ -1,19 +1,25 @@
 # ==============================================================================
 # Email Routing — environments.<env>.emailRouting forwards an address of one of
-# the account's zones to one or more mailboxes:
+# the account's zones to ONE mailbox (a Cloudflare rule has a single destination):
 #
 #   emailRouting:
 #     contact@ouiti.com: me@gmail.com
-#     orders@ouiti.com: [me@gmail.com, shop@gmail.com]
+#     orders@ouiti.com: shop@gmail.com
 #
 # zones/ turns Email Routing on in the zone; scripts/ensure-email-destinations.py
 # registers the mailboxes (Cloudflare mails each one a confirmation link, once).
-# Removing a line removes its rule.
+# Cloudflare refuses a rule towards an unconfirmed mailbox: its rule waits for
+# the first deploy after the link is clicked. Removing a line removes its rule.
 # ==============================================================================
 
 locals {
   routes = {
-    for src, dst in try(local.env_spec.emailRouting, {}) : lower(src) => try(tolist(dst), [dst])
+    for src, dst in try(local.env_spec.emailRouting, {}) : lower(src) => lower(dst)
+  }
+  # null (tests, local plans): every rule, as if every mailbox were confirmed.
+  confirmed_routes = {
+    for src, dst in local.routes : src => dst
+    if var.email_verified == null || contains(coalesce(var.email_verified, []), dst)
   }
   route_zone = {
     for src, _ in local.routes : src => try(split(" ", reverse(sort([
@@ -24,7 +30,7 @@ locals {
 }
 
 resource "cloudflare_email_routing_rule" "forward" {
-  for_each = local.routes
+  for_each = local.confirmed_routes
 
   zone_id = try(local.zones[local.route_zone[each.key]], "")
   name    = "${local.app} ${var.environment} — ${each.key} (infra apps/env)"
@@ -36,7 +42,7 @@ resource "cloudflare_email_routing_rule" "forward" {
   }]
   actions = [{
     type  = "forward"
-    value = each.value
+    value = [each.value]
   }]
 
   lifecycle {

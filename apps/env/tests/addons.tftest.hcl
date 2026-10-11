@@ -115,8 +115,21 @@ run "forwarding_rules_in_the_right_zone" {
     error_message = "each address goes to the zone with the longest matching suffix (lowercased)"
   }
   assert {
-    condition     = jsonencode(cloudflare_email_routing_rule.forward["orders@example.com"].actions[0].value) == jsonencode(["me@gmail.com", "shop@gmail.com"]) && cloudflare_email_routing_rule.forward["contact@shop.example.com"].matchers[0].value == "contact@shop.example.com"
-    error_message = "one rule per address, forwarding to every listed mailbox"
+    condition     = jsonencode(cloudflare_email_routing_rule.forward["orders@example.com"].actions[0].value) == jsonencode(["shop@gmail.com"]) && cloudflare_email_routing_rule.forward["contact@shop.example.com"].matchers[0].value == "contact@shop.example.com"
+    error_message = "one rule per address, forwarding to its one mailbox (lowercased)"
+  }
+}
+
+run "no_rule_towards_an_unconfirmed_mailbox" {
+  command = plan
+
+  variables {
+    email_verified = ["me@gmail.com"]
+  }
+
+  assert {
+    condition     = keys(cloudflare_email_routing_rule.forward) == ["contact@shop.example.com"]
+    error_message = "Cloudflare refuses a rule towards an unconfirmed mailbox: it waits for the next deploy"
   }
 }
 

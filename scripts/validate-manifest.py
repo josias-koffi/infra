@@ -117,11 +117,19 @@ def semantic_errors(m):
     return errs
 
 
+def schema_message(e):
+    path = list(e.absolute_path)
+    if len(path) == 4 and path[2] == "emailRouting" and isinstance(e.instance, list):
+        return (f"lists {len(e.instance)} mailboxes — Cloudflare forwards an address to ONE mailbox; "
+                "forward on from that mailbox (a Gmail filter) to reach the others")
+    return e.message
+
+
 def main(paths):
     failed = False
     for p in paths:
         m = yaml.safe_load(pathlib.Path(p).read_text())
-        errs = [f"{'.'.join(map(str, e.absolute_path)) or '<root>'}: {e.message}"
+        errs = [f"{'.'.join(map(str, e.absolute_path)) or '<root>'}: {schema_message(e)}"
                 for e in jsonschema.Draft202012Validator(SCHEMA).iter_errors(m)]
         if not errs:
             errs = semantic_errors(m)

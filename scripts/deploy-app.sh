@@ -30,10 +30,12 @@ m = yaml.safe_load(open(sys.argv[1]))
 if sys.argv[2] not in m["environments"]:
     sys.exit(f"environment '{sys.argv[2]}' is not declared in {sys.argv[1]}")
 PY
-DNS_OWNED=$(mktemp)
-trap 'rm -f "$DNS_OWNED"' EXIT
+DNS_OWNED=$(mktemp) EMAIL_VERIFIED=$(mktemp)
+trap 'rm -f "$DNS_OWNED" "$EMAIL_VERIFIED"' EXIT
 python3 "$ROOT/scripts/check-dns.py" "$MANIFEST" "$ENVIRONMENT" "$DNS_OWNED"
-python3 "$ROOT/scripts/ensure-email-destinations.py" "$MANIFEST" "$ENVIRONMENT" $([ "$ACTION" = apply ] || echo --dry-run)
+python3 "$ROOT/scripts/ensure-email-destinations.py" "$MANIFEST" "$ENVIRONMENT" $([ "$ACTION" = apply ] || echo --dry-run) "$EMAIL_VERIFIED"
+# Cloudflare refuses a rule towards an unconfirmed mailbox: apps/env leaves it out.
+export TF_VAR_email_verified=$(cat "$EMAIL_VERIFIED")
 
 echo "::group::${APP} — project (apps/${APP}/project.tfstate)"
 tofu -chdir="$ROOT/apps/project" init -input=false -reconfigure \

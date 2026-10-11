@@ -3,12 +3,15 @@
 Cloudflare Email Routing destination addresses. They belong to the account and
 are shared by every app, so they are created here, never deleted.
 
-Cloudflare mails each new address a confirmation link: until it is clicked,
-mail is not forwarded there. The deploy goes on; this prints a warning.
+Cloudflare mails each new address a confirmation link, and refuses a rule
+towards an address until it is clicked. The deploy goes on without that rule;
+this prints a warning, and the next deploy after the click creates it.
 
-    scripts/ensure-email-destinations.py <manifest> <environment> [--dry-run]
+    scripts/ensure-email-destinations.py <manifest> <environment> [--dry-run] [<verified.json>]
 
 --dry-run (plan-only deploys) lists what would be registered, creates nothing.
+<verified.json> receives the confirmed mailboxes of the account, a JSON list
+(apps/env, var.email_verified).
 
 Environment: CLOUDFLARE_API_TOKEN, CF_ACCOUNT_ID.
 """
@@ -27,10 +30,12 @@ cf = import_module("check-dns").cf  # same retries and error messages
 API = "https://api.cloudflare.com/client/v4"
 
 
-def main(manifest_path, environment, dry_run=False):
+def main(manifest_path, environment, dry_run=False, verified_out=None):
     m = yaml.safe_load(open(manifest_path))
     routes = m["environments"][environment].get("emailRouting", {})
-    wanted = sorted({d.lower() for v in routes.values() for d in ([v] if isinstance(v, str) else v)})
+    wanted = sorted({d.lower() for d in routes.values()})
+    if verified_out:
+        pathlib.Path(verified_out).write_text("[]")
     if not wanted:
         return 0
     token, account = os.environ.get("CLOUDFLARE_API_TOKEN"), os.environ.get("CF_ACCOUNT_ID")
@@ -58,13 +63,15 @@ def main(manifest_path, environment, dry_run=False):
                 known[email] = json.load(r)["result"]
             print(f"✓ Email Routing: {email} registered — Cloudflare sent it a confirmation link")
         if not known[email].get("verified"):
-            print(f"::warning::Email Routing: {email} is not confirmed yet, nothing is forwarded to it "
-                  "until the link Cloudflare mailed it is clicked")
+            print(f"::warning::Email Routing: {email} is not confirmed yet, its rule is left out until "
+                  "the link Cloudflare mailed it is clicked — then deploy again")
+    if verified_out:
+        pathlib.Path(verified_out).write_text(json.dumps(sorted(e for e, a in known.items() if a.get("verified"))))
     return 0
 
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if a != "--dry-run"]
-    if len(args) != 2:
+    if len(args) not in (2, 3):
         sys.exit(__doc__)
-    sys.exit(main(*args, dry_run="--dry-run" in sys.argv))
+    sys.exit(main(*args[:2], dry_run="--dry-run" in sys.argv, verified_out=args[2] if len(args) == 3 else None))
