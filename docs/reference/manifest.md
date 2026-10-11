@@ -204,7 +204,7 @@ environments:
       apps: { api: { replicas: 2, resources: { memory: 2g } } }
     emailRouting:                      # redirection d'adresses (Cloudflare Email Routing)
       contact@example.com: moi@gmail.com
-      commandes@example.com: [moi@gmail.com, resto@gmail.com]
+      commandes@example.com: resto@gmail.com
 ```
 
 Un même hôte ne peut appartenir qu'à un seul environnement (le validateur le
@@ -213,8 +213,10 @@ adresse de `emailRouting`.
 
 ### Redirection d'adresses (`emailRouting`)
 
-Chaque ligne fait suivre une adresse d'une zone du compte vers une ou
-plusieurs boîtes, gratuitement (Cloudflare Email Routing) :
+Chaque ligne fait suivre une adresse d'une zone du compte vers **une** boîte,
+gratuitement (Cloudflare Email Routing). Une règle Cloudflare n'a qu'une
+destination : pour toucher plusieurs personnes, faire suivre depuis cette boîte
+(un filtre Gmail). Le validateur refuse une liste.
 
 - `zones/` active Email Routing sur chaque zone du compte qui n'a pas déjà son
   propre service mail à l'apex (un MX ou un SPF étranger : Google Workspace…).
@@ -222,7 +224,9 @@ plusieurs boîtes, gratuitement (Cloudflare Email Routing) :
   déploiement refuse d'y créer une règle ;
 - les boîtes de destination sont enregistrées au déploiement. **Une seule
   action à la main, une fois par boîte** : cliquer le lien de confirmation que
-  Cloudflare y envoie. D'ici là, le déploiement prévient sans échouer ;
+  Cloudflare y envoie. Cloudflare refuse une règle vers une boîte non
+  confirmée : le déploiement prévient, passe sans elle, et **le déploiement
+  suivant le clic** la crée ;
 - retirer une ligne supprime la règle ; la boîte reste enregistrée (elle peut
   servir à d'autres apps).
 

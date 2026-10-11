@@ -15,4 +15,4 @@ environments:
     domains: { site: staging.shop.example.com, blog: blog-staging.example.com }
     emailRouting:
       contact@shop.example.com: me@gmail.com
-      Orders@example.com: [me@gmail.com, shop@gmail.com]
+      Orders@example.com: Shop@gmail.com

@@ -66,3 +66,9 @@ variable "project_state_exists" {
   description = "False only in a plan-only run before apps/project was ever applied (set by scripts/deploy-app.sh)."
   default     = true
 }
+
+variable "email_verified" {
+  type        = list(string)
+  description = "Confirmed Email Routing mailboxes of the account (set by scripts/deploy-app.sh from scripts/ensure-email-destinations.py). A rule towards any other is not created yet. null: no filter."
+  default     = null
+}
