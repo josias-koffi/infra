@@ -34,6 +34,13 @@ d'une app vivent sur le même serveur.
    enregistrements DNS de ses domaines suivent l'IP du serveur au déploiement
    suivant.
 
+## Ports autres que HTTP(S)
+
+`ufw` n'ouvre que 22, 80 et 443, mais un port publié par Docker (`ports:` d'un
+compose, par exemple l'UDP 10000 de Jitsi) contourne `ufw` : il est joignable
+dès le déploiement. Seul le pare-feu de l'hébergeur, s'il y en a un, doit
+l'autoriser en plus.
+
 ## Déplacer une app existante vers un autre serveur
 
 Changer `server:` recrée les services de l'app sur l'autre machine. Les
