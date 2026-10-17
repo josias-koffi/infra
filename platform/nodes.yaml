@@ -8,6 +8,10 @@ nodes:
     ip: 84.247.169.172
     provider: contabo
     description: Dokploy panel + prod/staging apps
+  civinat:
+    role: remote
+    ip: 169.58.203.105
+    description: Civinat (staging + production, Jitsi)
   # node2:
   #   role: remote
   #   ip: 203.0.113.20
