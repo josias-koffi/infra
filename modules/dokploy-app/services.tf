@@ -258,6 +258,40 @@ resource "dokploy_domain" "app" {
   certificate_type = "letsencrypt"
 }
 
+# Dokploy writes the Traefik file of an application (one file per app) with a
+# read-modify-write on every domain create. The domains of one app are created
+# in parallel, so the last write wins and the other routes are lost: on the
+# civinat node (2026-10-18) app-stage-admin answered 404 with the default
+# certificate while its domain record existed. A redeploy does not rewrite the
+# file; a domain.update does. Once an app's domains change, re-save them one at
+# a time, so the file ends up with every route.
+locals {
+  multi_domain_apps = toset([for name in distinct([for d in local.app_domains : d.app]) : name if length([for d in local.app_domains : d if d.app == name]) > 1])
+}
+
+resource "terraform_data" "resave_domains" {
+  for_each = var.resave_domains ? local.multi_domain_apps : toset([])
+
+  triggers_replace = [for k, d in dokploy_domain.app : d.id if local.app_domains[k].app == each.key]
+
+  provisioner "local-exec" {
+    command = join("\n", concat(["set -e"], [
+      for k, d in dokploy_domain.app : <<-EOT
+        curl -fsS -o /dev/null -X POST "$DOKPLOY_ENDPOINT/api/domain.update" \
+          -H "x-api-key: $DOKPLOY_API_KEY" -H "Content-Type: application/json" \
+          -d '${jsonencode(merge(
+      { domainId = d.id, host = d.host, port = d.port, https = true, certificateType = "letsencrypt" },
+      local.app_domains[k].path == null ? {} : { path = local.app_domains[k].path },
+    ))}'
+      EOT
+    if local.app_domains[k].app == each.key
+]))
+environment = {
+  DOKPLOY_ENDPOINT = var.dokploy_endpoint
+}
+}
+}
+
 # Named volumes keep the <prefix>_<name> convention of the compose stacks, so
 # an app moving out of a compose mounts the very same volume, without a copy.
 resource "dokploy_mount" "app" {

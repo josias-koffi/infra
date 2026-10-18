@@ -3,3 +3,9 @@
 # (output `dokploy_node_public_key` of platform/). Dokploy connects as root and
 # installs its own Traefik and runtime on the node.
 dokploy_node_public_key: "{{ lookup('env', 'DOKPLOY_NODE_PUBLIC_KEY') | default('', true) }}"
+
+# Pull credentials for private ghcr.io images (`registry: ghcr` in a manifest).
+# The platform's dokploy_registry logs in on the manager only: a remote node
+# pulls as root over SSH, with root's own Docker login.
+ghcr_username: "{{ lookup('env', 'GHCR_USERNAME') | default('', true) }}"
+ghcr_token: "{{ lookup('env', 'GHCR_TOKEN') | default('', true) }}"
