@@ -15,9 +15,12 @@
     key: "{{ dokploy_node_public_key }}"
     state: present
 
-- name: Allow root login with a key only
-  ansible.builtin.lineinfile:
-    path: /etc/ssh/sshd_config
-    regexp: '^#?PermitRootLogin'
-    line: PermitRootLogin prohibit-password
-  notify: Restart ssh
+# Dokploy deploys a private image on a remote node with `docker pull` as root:
+# without this login the pull fails with "unauthorized".
+- name: Log root in to ghcr.io
+  when: ghcr_username | length > 0 and ghcr_token | length > 0
+  ansible.builtin.command:
+    cmd: docker login ghcr.io --username {{ ghcr_username }} --password-stdin
+    stdin: "{{ ghcr_token }}"
+  no_log: true
+  changed_when: false

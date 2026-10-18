@@ -41,6 +41,7 @@ module "app" {
   compose_file          = local.compose != null ? file("${local.root}/${local.compose}") : ""
   backup_destination_id = "dest-${var.environment}"
   redeploy_after_mounts = false
+  resave_domains        = false
 }
 
 output "rendered" {

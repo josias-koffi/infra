@@ -76,3 +76,9 @@ variable "redeploy_after_mounts" {
   description = "Redeploy an application after its mounts change (off in tests)."
   default     = true
 }
+
+variable "resave_domains" {
+  type        = bool
+  description = "Re-save the domains of an app with several, one at a time, after they change (Dokploy loses routes on parallel creates; off in tests)."
+  default     = true
+}
