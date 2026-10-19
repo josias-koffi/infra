@@ -1,0 +1,4 @@
+---
+# Dial IPv4 before IPv6 for image pulls (and for every host program, through
+# /etc/gai.conf). Turn it off on a host whose IPv6 is reliable.
+docker_prefer_ipv4: true
