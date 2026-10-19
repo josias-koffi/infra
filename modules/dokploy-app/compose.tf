@@ -92,3 +92,24 @@ resource "dokploy_domain" "compose" {
   https            = true
   certificate_type = "letsencrypt"
 }
+
+# A compose gets its Traefik labels when it deploys, and Dokploy deploys it at
+# create time, before its domains exist; a new domain does not redeploy it. On
+# the civinat node (2026-10-18) civinat-jitsi answered 404 until a manual
+# compose.redeploy. Redeploy once the domains of the compose change.
+resource "terraform_data" "redeploy_compose_after_domains" {
+  count = var.redeploy_after_domains && length(local.compose_routes) > 0 ? 1 : 0
+
+  triggers_replace = [for d in dokploy_domain.compose : d.id]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      curl -fsS -X POST "$DOKPLOY_ENDPOINT/api/compose.redeploy" \
+        -H "x-api-key: $DOKPLOY_API_KEY" -H "Content-Type: application/json" \
+        -d '{"composeId":"${dokploy_compose.this[0].id}"}'
+    EOT
+    environment = {
+      DOKPLOY_ENDPOINT = var.dokploy_endpoint
+    }
+  }
+}

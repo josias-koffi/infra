@@ -77,6 +77,12 @@ variable "redeploy_after_mounts" {
   default     = true
 }
 
+variable "redeploy_after_domains" {
+  type        = bool
+  description = "Redeploy a compose after its domains change, so it gets their Traefik labels (off in tests)."
+  default     = true
+}
+
 variable "resave_domains" {
   type        = bool
   description = "Re-save the domains of an app with several, one at a time, after they change (Dokploy loses routes on parallel creates; off in tests)."

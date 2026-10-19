@@ -36,12 +36,13 @@ module "app" {
   image_tag      = "abc1234"
   # Every required secret gets a placeholder; var.secrets adds or overrides
   # (an optional or generated name given by hand).
-  secrets               = merge({ for k in try(local.manifest.secrets, []) : k => "s3cr3t-${lower(k)}" }, var.secrets)
-  addons                = var.addons
-  compose_file          = local.compose != null ? file("${local.root}/${local.compose}") : ""
-  backup_destination_id = "dest-${var.environment}"
-  redeploy_after_mounts = false
-  resave_domains        = false
+  secrets                = merge({ for k in try(local.manifest.secrets, []) : k => "s3cr3t-${lower(k)}" }, var.secrets)
+  addons                 = var.addons
+  compose_file           = local.compose != null ? file("${local.root}/${local.compose}") : ""
+  backup_destination_id  = "dest-${var.environment}"
+  redeploy_after_mounts  = false
+  redeploy_after_domains = false
+  resave_domains         = false
 }
 
 output "rendered" {
