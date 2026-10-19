@@ -56,13 +56,31 @@
     state: directory
     mode: "0755"
 
-- name: Set DOCKER_MIN_API_VERSION for backward-compat clients (e.g. Traefik)
+# Image pulls over IPv6 reset mid-blob on some hosts: on the civinat node
+# (2026-10-18) every deploy failed on "read tcp [2a02:…]->[2606:50c0:…]:443:
+# connection reset by peer" from pkg-containers.githubusercontent.com, while
+# IPv4 never failed. dockerd's Go resolver ignores gai.conf; with netdns=cgo it
+# asks glibc, which honours it (verified on the node), so IPv4 is dialled first.
+- name: Prefer IPv4 for host name resolution
+  ansible.builtin.lineinfile:
+    path: /etc/gai.conf
+    line: precedence ::ffff:0:0/96  100
+    create: true
+    mode: "0644"
+    state: "{{ 'present' if docker_prefer_ipv4 else 'absent' }}"
+
+- name: Set the dockerd environment
   ansible.builtin.copy:
     dest: /etc/systemd/system/docker.service.d/override.conf
     mode: "0644"
     content: |
       [Service]
+      # Backward-compat clients (e.g. Traefik).
       Environment=DOCKER_MIN_API_VERSION=1.24
+      {% if docker_prefer_ipv4 %}
+      # Resolve through glibc so /etc/gai.conf applies (see above).
+      Environment=GODEBUG=netdns=cgo
+      {% endif %}
   notify: restart docker
 
 - name: Reload systemd daemon
