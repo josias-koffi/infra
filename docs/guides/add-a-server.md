@@ -41,6 +41,17 @@ compose, par exemple l'UDP 10000 de Jitsi) contourne `ufw` : il est joignable
 dès le déploiement. Seul le pare-feu de l'hébergeur, s'il y en a un, doit
 l'autoriser en plus.
 
+## IPv4 préféré pour les pulls
+
+Sur certains hébergeurs, les pulls d'images en IPv6 coupent en plein
+téléchargement (`connection reset by peer` vers
+`pkg-containers.githubusercontent.com`). Le rôle `docker` fait donc passer
+l'IPv4 en premier : une ligne `precedence` dans `/etc/gai.conf`, et
+`GODEBUG=netdns=cgo` pour dockerd, dont le résolveur Go ignore sinon ce
+fichier. Le réglage vaut pour tout l'hôte. Pour le désactiver sur un serveur
+dont l'IPv6 est fiable : `docker_prefer_ipv4: false` dans l'inventaire.
+Changer ce réglage redémarre Docker, ce qui coupe brièvement les conteneurs.
+
 ## Déplacer une app existante vers un autre serveur
 
 Changer `server:` recrée les services de l'app sur l'autre machine. Les
