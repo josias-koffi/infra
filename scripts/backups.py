@@ -22,7 +22,9 @@ workflow opens an issue from it), --summary a Markdown table.
 
 sync-buckets copies each bucket into the backup bucket of its environment:
 <backup>/buckets/<app>/<env>/<key>/current/, files replaced or deleted since
-the last run kept under history/<date>/ for `keep` days (rclone).
+the last run kept under history/<date>/ for `keep` days (rclone). Each run
+leaves an empty syncs/<date> marker: a new object every time, never an
+overwrite, so a bucket lock on the backup bucket does not refuse it.
 
 Environment:
   TF_STATE_BUCKET, AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY   the states
@@ -285,11 +287,12 @@ def verify(args):
 
         for k, b in (inv.get("buckets") or {}).items():
             copy = [o for o in objs if o["Key"].startswith(b["prefix"] + "current/")]
-            marker = [o for o in objs if o["Key"] == b["prefix"] + "last-sync"]
+            marker = max((o for o in objs if o["Key"].startswith(b["prefix"] + "syncs/")),
+                         key=lambda o: o["LastModified"], default=None)
             if not marker:
                 add(app, env, "bucket", k, False, "never synced (bucket-backup.yml)")
                 continue
-            age = NOW - marker[0]["LastModified"]
+            age = NOW - marker["LastModified"]
             if age > dt.timedelta(hours=26):
                 add(app, env, "bucket", k, False, f"last sync {age.days} d {age.seconds // 3600} h ago")
                 continue
@@ -349,12 +352,17 @@ def sync_buckets(args):
                 ["rclone", "sync", f"SRC:{b['name']}", base + "current", "--backup-dir", f"{base}history/{day}", "--fast-list"],
                 ["rclone", "delete", base + "history", "--min-age", f"{inv.get('keep', 7)}d"],
                 ["rclone", "rmdirs", base + "history", "--leave-root"],
+                ["rclone", "delete", base + "syncs", "--min-age", f"{inv.get('keep', 7)}d"],
             ]
             print(f"{app}/{env} bucket {k}: {b['name']} → {target['bucket']}/{b['prefix']}current")
             ok = all(subprocess.run(s, env=env_vars).returncode == 0 for s in steps)
             if ok:
-                ok = subprocess.run(["rclone", "rcat", base + "last-sync"], input=NOW.isoformat(), text=True,
-                                    env=env_vars).returncode == 0
+                try:
+                    aws(["s3api", "put-object", "--bucket", target["bucket"], "--key", f"{b['prefix']}syncs/{day}"],
+                        remote["DST"])
+                except RuntimeError as e:
+                    print(f"  {e}")
+                    ok = False
             print("  ✓ synced" if ok else "  ✗ sync failed")
             failed += not ok
     return 1 if failed else 0
