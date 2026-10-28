@@ -13,6 +13,7 @@
 # owner already holds them (then they are left alone and listed).
 mail:
   ouiti.com: {}
+  koklo.dev: {}
 
 # Email Routing is turned on in every zone of the account whose apex has no
 # mail setup of its own (no foreign MX or SPF); the others are listed in the
