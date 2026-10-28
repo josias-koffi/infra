@@ -1,0 +1,5 @@
+# Enregistrement DNS existant de koklo-dev/koklo, repris par apps/env au prochain déploiement staging.
+# À supprimer une fois l'import fait (docs/guides/deploy-an-app.md#dns).
+environments:
+  staging:
+    dnsRecords: { app: 3a35cf27069c185bc7c8c165795b4c20 }   # app-staging.koklo.dev
