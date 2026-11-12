@@ -90,6 +90,9 @@ def main(manifest_path, environment, dry_run=False, force=False):
     for n in names:
         if n not in found:
             print(f"  ? {n}: not found in the state — scripts/init-app-env.sh -e {environment}")
+        elif found[n] == "" and n in m.get("optionalSecrets", []):
+            # An optional secret left out runs as "": nothing to copy, and gh refuses an empty value.
+            print(f"  - {n}: empty optional secret (skipped)")
         elif n in have and not force:
             print(f"  ✓ {n}: already set (kept)")
         elif dry_run:
