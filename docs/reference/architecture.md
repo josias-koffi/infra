@@ -36,7 +36,7 @@ que le déclencher avec `INFRA_DEPLOY_TOKEN`.
 
 | Ressource | Root | State |
 |---|---|---|
-| Domaines d'envoi Resend, activation d'Email Routing par zone | `zones` | `zones/zones.tfstate` |
+| Domaines d'envoi Resend, activation d'Email Routing par zone, vérification Search Console par domaine (`scripts/ensure-search-console.py`) | `zones` | `zones/zones.tfstate` |
 | Propriétés GA4, flux, conteneurs GTM (add-on `analytics`) | aucun : `scripts/ensure-analytics.py`, idempotent | retrouvés par nom chez Google |
 
 ## Un déploiement, pas à pas

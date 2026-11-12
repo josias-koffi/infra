@@ -1,2 +1,4 @@
 mail:
   mail.shop.example.com: {}
+searchConsole:
+  shop.example.com: {}

@@ -44,6 +44,8 @@ import time
 
 import yaml
 
+from google_api import Api, session_from_env
+
 GA = "https://analyticsadmin.googleapis.com/v1beta"
 GTM = "https://tagmanager.googleapis.com/tagmanager/v2"
 SCOPES = [
@@ -72,44 +74,6 @@ RETENTION = {
     # True would restart the 14 months at every visit of a returning user.
     "resetUserDataOnNewActivity": False,
 }
-
-
-class Api:
-    """Authorized JSON calls, retried on quota (429) and server errors."""
-
-    def __init__(self, session):
-        self.s = session
-
-    def call(self, method, url, body=None, params=None):
-        for attempt in range(6):
-            r = self.s.request(method, url, json=body, params=params, timeout=60)
-            if r.status_code == 429 or r.status_code >= 500:
-                time.sleep(min(2 ** attempt * 5, 60))
-                continue
-            if r.status_code == 404 and method == "GET":
-                return None
-            if r.status_code >= 400:
-                sys.exit(f"analytics: {method} {url} → {r.status_code}\n{r.text}")
-            return r.json() if r.content else {}
-        sys.exit(f"analytics: {method} {url} still refused after retries ({r.status_code})")
-
-    def pages(self, url, key, params=None):
-        params, items = dict(params or {}), []
-        while True:
-            page = self.call("GET", url, params=params) or {}
-            items += page.get(key, [])
-            if not page.get("nextPageToken"):
-                return items
-            params["pageToken"] = page["nextPageToken"]
-
-
-def session_from_env():
-    from google.auth.transport.requests import AuthorizedSession
-    from google.oauth2 import service_account
-
-    info = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
-    creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
-    return AuthorizedSession(creds)
 
 
 def account(var):
@@ -348,9 +312,7 @@ def main(manifest_path, environment, dry_run, out):
         return 0
     if not hosts_by_env(m).get(environment):
         sys.exit(f"analytics: environments.{environment} has no domain to measure")
-    if not os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON"):
-        sys.exit("analytics: GOOGLE_SERVICE_ACCOUNT_JSON is required (infra repo secret, docs/reference/configuration.md)")
-    values = run(Api(session_from_env()), m, environment, dry_run,
+    values = run(Api(session_from_env(SCOPES, "analytics"), "analytics"), m, environment, dry_run,
                  account("GA_ACCOUNT_ID"), account("GTM_ACCOUNT_ID"))
     pathlib.Path(out).write_text(json.dumps(values))
     print(f"analytics: {environment} → {values['GTM_CONTAINER_ID']}, {values['GA_MEASUREMENT_ID']}")

@@ -9,6 +9,10 @@
 # no mail setup of its own at its apex, so that a manifest can forward an
 # address (environments.<env>.emailRouting, rules made by apps/env).
 #
+# Google Search Console: the DNS TXT record that verifies each domain listed
+# under searchConsole: (token from scripts/ensure-search-console.py, which
+# then verifies the domain and shares the property). Opt-in per domain.
+#
 #   make zones-plan / make zones-apply   (CI: .github/workflows/zones.yml)
 # ==============================================================================
 
@@ -61,9 +65,24 @@ locals {
   zones = { for z in data.cloudflare_zones.all.result : z.name => z.id }
   # The zone with the longest suffix matching the name, as in apps/env.
   zone_of = {
-    for d in keys(try(local.config.mail, {})) : d => try(split(" ", reverse(sort([
+    for d in setunion(keys(try(local.config.mail, {})), keys(local.search_console_config)) : d => try(split(" ", reverse(sort([
       for z in keys(local.zones) : format("%04d %s", length(z), z) if d == z || endswith(d, ".${z}")
     ]))[0])[1], null)
+  }
+
+  search_console_config = coalesce(try(local.config.searchConsole, null), {})
+  search_console = {
+    for d, _ in local.search_console_config : d => {
+      zone_id = try(local.zones[local.zone_of[d]], null)
+      token   = try(var.search_console_tokens[d], null)
+    }
+  }
+  # The same TXT already there, written by hand or by another tool: left alone.
+  search_console_foreign = {
+    for d, s in local.search_console : d => [
+      for e in data.cloudflare_dns_records.search_console[d].result : e
+      if e.comment != local.ours && trim(e.content, "\"") == s.token
+    ]
   }
 
   mail = {
@@ -264,6 +283,36 @@ resource "cloudflare_email_routing_dns" "this" {
   for_each = local.routing_zones
 
   zone_id = each.value
+}
+
+data "cloudflare_dns_records" "search_console" {
+  for_each = { for d, s in local.search_console : d => s if s.zone_id != null }
+
+  zone_id = each.value.zone_id
+  name    = { exact = each.key }
+  type    = "TXT"
+}
+
+resource "cloudflare_dns_record" "search_console" {
+  for_each = { for d, s in local.search_console : d => s if length(try(local.search_console_foreign[d], [])) == 0 }
+
+  zone_id = each.value.zone_id
+  name    = each.key
+  type    = "TXT"
+  content = each.value.token
+  ttl     = 1
+  comment = local.ours
+
+  lifecycle {
+    precondition {
+      condition     = each.value.zone_id != null
+      error_message = "searchConsole: ${each.key} is in no zone of the Cloudflare account: add it to Cloudflare first."
+    }
+    precondition {
+      condition     = can(regex("^google-site-verification=", each.value.token))
+      error_message = "searchConsole: no token for ${each.key} — scripts/ensure-search-console.py tokens runs before zones/ (var.search_console_tokens)."
+    }
+  }
 }
 
 # A sending domain already in Resend: found by its name, or zones.yaml →

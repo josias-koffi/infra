@@ -22,3 +22,9 @@ variable "adopt_resend_domains" {
   description = "Import the domains Resend already has. Off only in tests: OpenTofu's mocked providers cannot import."
   default     = true
 }
+
+variable "search_console_tokens" {
+  type        = map(string)
+  description = "TXT value Google asks for each domain under searchConsole: (scripts/ensure-search-console.py tokens). Public: it is written in DNS."
+  default     = {}
+}

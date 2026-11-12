@@ -21,3 +21,12 @@ mail:
 # (environments.<env>.emailRouting). To keep a zone out:
 # emailRouting:
 #   exclude: [example.com]
+
+# Google Search Console. One line per domain: a Domain property (all its
+# subdomains), verified by a DNS TXT record at the domain, then shared with
+# the Google accounts of SEARCH_CONSOLE_OWNERS (repo variable, kept out of this
+# public repo). Opt-in: a domain left out is never touched, so a property made
+# by hand stays as it is. Listing a domain already verified by hand only adds
+# the service account as one more owner.
+searchConsole:
+  koklo.dev: {}

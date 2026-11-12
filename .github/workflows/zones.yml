@@ -1,14 +1,15 @@
-# zones/ — sending domains (Resend) and their DNS records, from zones/zones.yaml.
+# zones/ — sending domains (Resend), Search Console verification, and their DNS
+# records, from zones/zones.yaml.
 # Plans on a pull request, applies on main. Off until ZONES_ENABLED=true (repo
 # variable), once CF_API_TOKEN, CF_ACCOUNT_ID and RESEND_ADMIN_API_KEY are set.
 name: Zones
 
 on:
   pull_request:
-    paths: [zones/**]
+    paths: [zones/**, scripts/ensure-search-console.py, scripts/google_api.py]
   push:
     branches: [main]
-    paths: [zones/**]
+    paths: [zones/**, scripts/ensure-search-console.py, scripts/google_api.py]
   workflow_dispatch:
 
 permissions:
@@ -30,16 +31,26 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
       TF_VAR_cf_account_id: ${{ secrets.CF_ACCOUNT_ID }}
       TF_VAR_resend_api_key: ${{ secrets.RESEND_ADMIN_API_KEY }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      SEARCH_CONSOLE_OWNERS: ${{ vars.SEARCH_CONSOLE_OWNERS }}
     steps:
       - uses: actions/checkout@v4
       - uses: opentofu/setup-opentofu@v1
         with: { tofu_version: 1.12.3, tofu_wrapper: false }
+      - run: pip install --quiet pyyaml google-auth requests
+      # The TXT value Google wants for each domain under searchConsole: (public:
+      # it goes into DNS). Asking again gives the same one.
+      - name: Search Console tokens
+        run: echo "TF_VAR_search_console_tokens=$(scripts/ensure-search-console.py tokens zones/zones.yaml -)" >> "$GITHUB_ENV"
       - run: tofu -chdir=zones init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
       - name: Plan
         run: tofu -chdir=zones plan -input=false -out=tfplan
       - name: Apply
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: tofu -chdir=zones apply -input=false tfplan
+      # Once the TXT records are written: verify, share with the owners.
+      - name: Search Console
+        run: scripts/ensure-search-console.py verify zones/zones.yaml ${{ (github.event_name == 'pull_request' || github.ref != 'refs/heads/main') && '--dry-run' || '' }}
       # The records of a domain this apply created are read from Resend on the
       # next plan: say so rather than apply a plan nobody saw.
       - name: Anything left
