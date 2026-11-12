@@ -25,6 +25,7 @@ RESERVED = {
     "CF_API_TOKEN", "CLOUDFLARE_API_TOKEN", "RESEND_ADMIN_API_KEY",
     "GHCR_TOKEN", "GHCR_ADMIN_TOKEN", "NODE_SSH_PRIVATE_KEY", "SSH_PRIVATE_KEY",
     "APP_REPOS_READ_TOKEN", "INFRA_DEPLOY_TOKEN", "GITHUB_TOKEN",
+    "GOOGLE_SERVICE_ACCOUNT_JSON",
 }
 
 SCHEMA = json.loads((pathlib.Path(__file__).parent.parent / "schema/manifest.v1.json").read_text())
@@ -38,10 +39,10 @@ def semantic_errors(m):
     generated = set(m.get("generate", []))   # a list, or the keys of a map
     secrets = typed | generated
     buckets = m.get("buckets", {})
-    addons = set(buckets) | ({"mail"} if m.get("mail") is not None else set())
+    addons = set(buckets) | {a for a in ("mail", "analytics") if m.get(a) is not None}
     known = set(comps) | set(dbs) | set(caches) | addons
     for a in sorted(addons & (set(comps) | set(dbs) | set(caches))):
-        errs.append(f"'{a}' is both an add-on (buckets/mail) and a component, database or cache")
+        errs.append(f"'{a}' is both an add-on (buckets/mail/analytics) and a component, database or cache")
     for name, c in comps.items():
         for u in c.get("uses", []):
             if u not in known:
@@ -66,8 +67,13 @@ def semantic_errors(m):
         injected |= {"RESEND_API_KEY", "MAIL_DOMAIN", "SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD"}
         if m.get("dns", "cloudflare") == "external" and not m["mail"].get("domain"):
             errs.append("mail.domain is required with dns: external")
+    if m.get("analytics") is not None:
+        injected |= {"GTM_CONTAINER_ID", "GA_MEASUREMENT_ID"}
+        for env, spec in m["environments"].items():
+            if not spec.get("domains"):
+                errs.append(f"analytics: environments.{env} has no domain to measure")
     for s in sorted(secrets & injected):
-        errs.append(f"secrets: '{s}' is injected by an add-on (buckets/mail) — remove it from the secrets")
+        errs.append(f"secrets: '{s}' is injected by an add-on (buckets/mail/analytics) — remove it from the secrets")
     for s in sorted(typed & generated):
         errs.append(f"generate: '{s}' is also in secrets/optionalSecrets — infra generates it, nobody types it")
     for s in sorted(secrets & RESERVED):

@@ -145,6 +145,24 @@
         }
       }
     },
+    "analytics": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Google Analytics 4 through Google Tag Manager: a GTM container per app, a GA4 property per app with a web stream per environment, made by scripts/ensure-analytics.py. A component gets GTM_CONTAINER_ID and GA_MEASUREMENT_ID through `uses: [analytics]`.",
+      "properties": {
+        "timeZone": {
+          "type": "string",
+          "default": "Europe/Paris",
+          "description": "Reporting time zone of the GA4 property (IANA name), set at creation."
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$",
+          "default": "EUR",
+          "description": "Currency of the GA4 property (ISO 4217), set at creation."
+        }
+      }
+    },
     "compose": {
       "type": "object",
       "additionalProperties": false,

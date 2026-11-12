@@ -5,11 +5,12 @@ apps:
     image: ghcr.io/example/shop-api
     port: 8080
     domain: site
-    uses: [medias, files, mail]
+    uses: [medias, files, mail, analytics]
 buckets:
   medias: {}
   files: { jurisdiction: default, envPrefix: FILES }
 mail: {}
+analytics: {}
 environments:
   staging:
     domains: { site: staging.shop.example.com, blog: blog-staging.example.com }

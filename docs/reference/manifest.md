@@ -28,6 +28,7 @@ Complétion dans l'éditeur, en première ligne :
 | `caches` | map | | Redis |
 | `buckets` | map | | stockage objet R2 créé par infra (voir [Buckets](#buckets)) |
 | `mail` | objet | | envoi de mails par Resend, clé créée par infra (voir [Mail](#mail)) |
+| `analytics` | objet | | Google Analytics 4 via Google Tag Manager, créés par infra (voir [Analytics](#analytics)) |
 | `compose` | objet | | mode compose |
 | `backups` | objet | activées | voir [sauvegardes](../guides/backups-and-restore.md) |
 | `environments` | map | requis | un environnement Dokploy par clé |
@@ -59,6 +60,7 @@ Complétion dans l'éditeur, en première ligne :
 | une base (`databases.db`) | `DATABASE_HOST`, `_PORT`, `_NAME`, `_USER`, `_PASSWORD`, `_URL` (préfixe modifiable avec `envPrefix`) |
 | un cache (`caches.cache`) | `REDIS_HOST`, `_PORT`, `_PASSWORD`, `_URL` |
 | `mail` | `RESEND_API_KEY`, `MAIL_DOMAIN`, et pour les apps SMTP `SMTP_HOST=smtp.resend.com`, `SMTP_PORT=587`, `SMTP_USER=resend`, `SMTP_PASSWORD` |
+| `analytics` | `GTM_CONTAINER_ID` (`GTM-…`, le même pour tous les environnements de l'app) et `GA_MEASUREMENT_ID` (`G-…`, celui de l'environnement) |
 | un bucket (`buckets.medias`) | `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION=auto`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE=true` (préfixe modifiable avec `envPrefix`) |
 | une autre app ou un worker | `<APP>_URL=https://<son domaine>` (s'il en a un) et `<APP>_INTERNAL_URL=http://<app>-<env>-<composant>:<port>` (s'il a un `port`) : alias stable sur `dokploy-network`, pour les appels côté serveur sans repasser par Traefik ni exposer de route |
 
@@ -135,6 +137,46 @@ recréé ni remplacé.
 
 RGPD : `eu-west-1` envoie depuis l'Irlande, mais Resend garde les données du
 compte (journaux, métadonnées) aux États-Unis.
+
+## Analytics
+
+```yaml
+analytics: {}                  # fuseau Europe/Paris, devise EUR
+# analytics: { timeZone: America/Montreal, currency: CAD }
+apps:
+  web: { uses: [analytics], … }
+```
+
+À chaque déploiement, `scripts/ensure-analytics.py` crée ce qui manque, en
+retrouvant chaque élément par son nom :
+
+| Où | Quoi | Nom |
+|---|---|---|
+| Google Analytics | une propriété GA4 par app | `<app>` |
+| Google Analytics | un flux web par environnement (URL : son premier domaine) | `<env>` |
+| Tag Manager | un conteneur web par app, partagé par ses environnements | `<app>` |
+| dans le conteneur | une table de correspondance `{{Page Hostname}}` → ID de mesure, avec tous les domaines de tous les environnements | `GA4 measurement ID (infra)` |
+| dans le conteneur | une balise Google qui lit cette table, sur *All Pages* | `Google tag (infra)` |
+
+Le trafic du staging arrive donc dans le flux du staging, jamais dans celui de
+la prod. Le conteneur n'est republié que quand la table ou la balise ont
+changé, par exemple après un domaine ajouté. Infra ne touche à rien d'autre
+dans le conteneur : les balises, déclencheurs et réglages de consentement
+ajoutés à la main restent. Une propriété ou un conteneur qui porte déjà le nom
+de l'app est adopté tel quel.
+
+Ces IDs sont publics, puisqu'ils figurent dans le HTML de chaque page : ce ne
+sont pas des secrets. Ils arrivent en **variables d'environnement au
+démarrage**. Une app dont le build les fige (`NEXT_PUBLIC_*`, `VITE_*`) doit
+les lire au runtime, avec une config servie par le serveur ou un rendu côté
+serveur du snippet GTM.
+
+Tous les environnements doivent avoir un domaine : le validateur refuse un
+environnement sans domaine.
+
+RGPD / CNIL : le conteneur ne pose pas de bandeau de consentement. Il reste à
+configurer le *Consent Mode* (un CMP et ses déclencheurs) dans le conteneur ;
+infra n'y touche pas.
 
 ## Secrets générés
 

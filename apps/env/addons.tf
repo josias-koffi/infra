@@ -12,6 +12,11 @@
 #                zones/zones.yaml (default: the zone of the env's first domain).
 #                Injected: RESEND_API_KEY, MAIL_DOMAIN, and SMTP_HOST/PORT/USER/
 #                PASSWORD for the apps that speak SMTP.
+#
+# analytics      a GTM container per app and a GA4 stream per environment,
+#                made by scripts/ensure-analytics.py before this root runs (the
+#                Google APIs have no resource worth a provider here). Injected:
+#                GTM_CONTAINER_ID, GA_MEASUREMENT_ID — public ids, not secrets.
 # ==============================================================================
 
 locals {
@@ -37,6 +42,8 @@ locals {
   mail_domains  = try(data.terraform_remote_state.zones[0].outputs.mail_domains, {})
   mail_key_name = "${local.app} ${var.environment} (infra apps/env)"
 
+  analytics_spec = try(local.spec.analytics, null)
+
   addons = merge({
     for k, b in local.buckets : k => {
       "${b.prefix}_ENDPOINT"          = local.r2_endpoint[k]
@@ -55,7 +62,26 @@ locals {
       SMTP_USER      = "resend"
       SMTP_PASSWORD  = jsondecode(restapi_object.mail_key[0].create_response).token
     }
+    }, local.analytics_spec == null ? {} : {
+    analytics = {
+      GTM_CONTAINER_ID  = try(var.analytics.GTM_CONTAINER_ID, "")
+      GA_MEASUREMENT_ID = try(var.analytics.GA_MEASUREMENT_ID, "")
+    }
   })
+}
+
+# The ids come from scripts/ensure-analytics.py: without them the app would
+# start with an empty container id and measure nothing, silently.
+resource "terraform_data" "analytics" {
+  count = local.analytics_spec != null ? 1 : 0
+  input = var.analytics
+
+  lifecycle {
+    precondition {
+      condition     = can(regex("^(GTM-[A-Z0-9]+|pending)$", try(var.analytics.GTM_CONTAINER_ID, ""))) && can(regex("^(G-[A-Z0-9]+|pending)$", try(var.analytics.GA_MEASUREMENT_ID, "")))
+      error_message = "analytics: no GTM/GA4 ids for ${var.environment} — scripts/deploy-app.sh runs scripts/ensure-analytics.py first (var.analytics)."
+    }
+  }
 }
 
 # The _list data source: the single one (cloudflare_account_api_token_permission_groups)

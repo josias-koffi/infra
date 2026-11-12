@@ -72,3 +72,9 @@ variable "email_verified" {
   description = "Confirmed Email Routing mailboxes of the account (set by scripts/deploy-app.sh from scripts/ensure-email-destinations.py). A rule towards any other is not created yet. null: no filter."
   default     = null
 }
+
+variable "analytics" {
+  type        = map(string)
+  description = "Variables of the add-on analytics for this environment: GTM_CONTAINER_ID, GA_MEASUREMENT_ID (set by scripts/deploy-app.sh from scripts/ensure-analytics.py)."
+  default     = {}
+}

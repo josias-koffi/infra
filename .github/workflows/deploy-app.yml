@@ -1,5 +1,5 @@
 # Deploys one environment of one app — runs HERE, in the infra repo, so the
-# platform credentials (Dokploy, R2, Cloudflare, Resend) never leave it.
+# platform credentials (Dokploy, R2, Cloudflare, Resend, Google) never leave it.
 #
 # Started by an app repo through dispatch-deploy.yml (token INFRA_DEPLOY_TOKEN,
 # actions:write on this repo only), or by hand from the Actions tab.
@@ -100,7 +100,7 @@ jobs:
           path: app
       - uses: opentofu/setup-opentofu@v1
         with: { tofu_version: 1.12.3, tofu_wrapper: false }
-      - run: pip install --quiet jsonschema pyyaml
+      - run: pip install --quiet jsonschema pyyaml google-auth requests
       - name: ${{ inputs.plan_only && 'Plan' || 'Deploy' }} ${{ needs.resolve.outputs.app }} ${{ inputs.environment }} @ ${{ inputs.image_tag }}
         env:
           DOKPLOY_URL: ${{ vars.DOKPLOY_URL }}
@@ -113,6 +113,9 @@ jobs:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
           RESEND_ADMIN_API_KEY: ${{ secrets.RESEND_ADMIN_API_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GA_ACCOUNT_ID: ${{ vars.GA_ACCOUNT_ID }}
+          GTM_ACCOUNT_ID: ${{ vars.GTM_ACCOUNT_ID }}
           SECRETS_JSON: ${{ toJSON(secrets) }}
         run: |
           infra/scripts/deploy-app.sh "app/${{ inputs.manifest }}" \
