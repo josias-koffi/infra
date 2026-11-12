@@ -159,7 +159,16 @@ retrouvant chaque élément par son nom :
 | dans le conteneur | une balise Google qui lit cette table, sur *All Pages* | `Google tag (infra)` |
 
 Le trafic du staging arrive donc dans le flux du staging, jamais dans celui de
-la prod. Le conteneur n'est republié que quand la table ou la balise ont
+la prod.
+
+Réglages CNIL, posés à la création et rétablis s'ils sont changés à la main :
+
+| Réglage | Infra | Défaut de Google |
+|---|---|---|
+| durée des cookies `_ga` (`cookie_expires`) | 13 mois | 2 ans |
+| prolongation à chaque visite (`cookie_update`) | non | oui |
+| conservation des données GA4 (événements et utilisateurs) | 14 mois | 2 mois |
+| remise à zéro de cette durée à chaque visite | non | oui | Le conteneur n'est republié que quand la table ou la balise ont
 changé, par exemple après un domaine ajouté. Infra ne touche à rien d'autre
 dans le conteneur : les balises, déclencheurs et réglages de consentement
 ajoutés à la main restent. Une propriété ou un conteneur qui porte déjà le nom

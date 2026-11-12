@@ -17,6 +17,11 @@ publishes the container only when what infra manages in it changed:
                     "Google tag (infra)"; anything else in the container is
                     left alone (other tags, consent, triggers made by hand).
 
+CNIL settings, set at creation and put back when changed by hand: GA cookies
+of 13 months not prolonged by new visits (Google's default: 2 years,
+prolonged), data kept 14 months not reset by new activity (default: 2 months,
+reset).
+
     scripts/ensure-analytics.py <manifest> <environment> [--dry-run] <out.json>
 
 <out.json> receives the variables of the add-on for <environment>, a JSON
@@ -53,6 +58,20 @@ TAG = "Google tag (infra)"
 WORKSPACE_PREFIX = "infra "
 ALL_PAGES = "2147479553"  # built-in trigger of every web container
 PENDING = "pending"
+
+# CNIL: measurement cookies live 13 months at most, counted from the first
+# visit (cookie_update false: a new visit does not push the date back), and
+# the data no longer than 25 months — GA4 keeps 14 at most on a free property.
+COOKIE_SETTINGS = {
+    "cookie_expires": str(13 * 30 * 24 * 3600),  # 390 days
+    "cookie_update": "false",
+}
+RETENTION = {
+    "eventDataRetention": "FOURTEEN_MONTHS",
+    "userDataRetention": "FOURTEEN_MONTHS",
+    # True would restart the 14 months at every visit of a returning user.
+    "resetUserDataOnNewActivity": False,
+}
 
 
 class Api:
@@ -127,6 +146,22 @@ def ensure_property(api, ga_account, app, spec, dry_run):
     })["name"]
 
 
+def ensure_retention(api, prop, dry_run):
+    """14 months of data, not prolonged by new activity (GA4 creates 2, prolonged)."""
+    if not prop:
+        print("analytics: GA4 data retention would be set to 14 months")
+        return
+    path = f"{GA}/{prop}/dataRetentionSettings"
+    current = api.call("GET", path) or {}
+    # The JSON of a protobuf leaves out a false boolean.
+    if all(current.get(k, False if isinstance(v, bool) else None) == v for k, v in RETENTION.items()):
+        return
+    print(f"analytics: GA4 data retention {'would be set' if dry_run else 'set'} to 14 months, not reset by new activity")
+    if not dry_run:
+        api.call("PATCH", path, {**RETENTION, "name": f"{prop}/dataRetentionSettings"},
+                 params={"updateMask": ",".join(RETENTION)})
+
+
 def ensure_streams(api, prop, hosts, dry_run):
     """{environment: measurement id} — one web data stream per environment."""
     streams = api.pages(f"{GA}/{prop}/dataStreams", "dataStreams") if prop else []
@@ -177,7 +212,15 @@ def google_tag():
         "name": TAG,
         "type": "googtag",
         "notes": "Managed by infra (scripts/ensure-analytics.py): edits are overwritten.",
-        "parameter": [{"type": "template", "key": "tagId", "value": "{{%s}}" % VARIABLE}],
+        "parameter": [
+            {"type": "template", "key": "tagId", "value": "{{%s}}" % VARIABLE},
+            {"type": "list", "key": "configSettingsTable", "list": [
+                {"type": "map", "map": [
+                    {"type": "template", "key": "parameter", "value": name},
+                    {"type": "template", "key": "parameterValue", "value": value},
+                ]} for name, value in sorted(COOKIE_SETTINGS.items())
+            ]},
+        ],
         "firingTriggerId": [ALL_PAGES],
     }
 
@@ -194,11 +237,21 @@ def table_of(variable):
     return None
 
 
+def config_settings_of(tag):
+    """The "Configuration settings" of a Google tag, as {parameter: value}."""
+    for p in tag.get("parameter", []):
+        if p.get("key") == "configSettingsTable":
+            rows = [{e["key"]: e.get("value") for e in row.get("map", [])} for row in p.get("list", [])]
+            return {r.get("parameter"): r.get("parameterValue") for r in rows}
+    return {}
+
+
 def tag_matches(tag):
     if not tag or tag.get("type") != "googtag":
         return False
     tag_id = next((p.get("value") for p in tag.get("parameter", []) if p.get("key") == "tagId"), None)
-    return tag_id == "{{%s}}" % VARIABLE and ALL_PAGES in tag.get("firingTriggerId", []) and not tag.get("paused")
+    return (tag_id == "{{%s}}" % VARIABLE and ALL_PAGES in tag.get("firingTriggerId", [])
+            and not tag.get("paused") and config_settings_of(tag) == COOKIE_SETTINGS)
 
 
 def ensure_container(api, gtm_account, app, dry_run):
@@ -273,6 +326,7 @@ def run(api, m, environment, dry_run, ga_account, gtm_account):
     spec, app = m["analytics"] or {}, m["name"]
     hosts = hosts_by_env(m)
     prop = ensure_property(api, ga_account, app, spec, dry_run)
+    ensure_retention(api, prop, dry_run)
     ids = ensure_streams(api, prop, hosts, dry_run)
     table = {h: ids[env] for env, hs in hosts.items() if env in ids for h in hs}
     container = ensure_container(api, gtm_account, app, dry_run)
