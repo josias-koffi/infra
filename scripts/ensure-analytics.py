@@ -26,7 +26,8 @@ nothing and writes "pending" for what does not exist yet.
 
 Environment:
   GOOGLE_SERVICE_ACCOUNT_JSON  key of a service account, Editor on the GA
-                               account and Publish on the GTM account
+                               account and Administrator of the GTM
+                               account (creating a container needs it)
   GA_ACCOUNT_ID                Google Analytics account (accounts/<id>)
   GTM_ACCOUNT_ID               Google Tag Manager account (accounts/<id>)
 """
