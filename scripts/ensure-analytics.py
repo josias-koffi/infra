@@ -284,7 +284,8 @@ def publish(api, container, table, app):
         if w.get("name", "").startswith(WORKSPACE_PREFIX):
             api.call("DELETE", f"{GTM}/{w['path']}")
     ws = api.call("POST", f"{GTM}/{path}/workspaces", {
-        "name": f"{WORKSPACE_PREFIX}{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}",
+        # GTM refuses ":" in a workspace name.
+        "name": f"{WORKSPACE_PREFIX}{time.strftime('%Y-%m-%d %Hh%Mm%Ss UTC', time.gmtime())}",
         "description": "Opened by scripts/ensure-analytics.py, consumed by its version.",
     })["path"]
     try:
@@ -295,7 +296,7 @@ def publish(api, container, table, app):
         upsert(api, ws, "tags", google_tag())
         # Making the version consumes the workspace.
         v = api.call("POST", f"{GTM}/{ws}:create_version", {
-            "name": f"infra — {app}",
+            "name": f"infra {app}",
             "notes": "GA4 hosts: " + ", ".join(f"{h} → {m}" for h, m in sorted(table.items())),
         })
     except SystemExit:
