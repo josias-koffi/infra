@@ -43,7 +43,7 @@ variable "secrets" {
 
 variable "addons" {
   type        = map(map(string))
-  description = "Variables of each add-on living outside Dokploy (buckets, mail), by its manifest key: { medias = { S3_BUCKET = \"…\", … } }. Built by apps/env."
+  description = "Variables of each add-on living outside Dokploy (buckets, mail, analytics), by its manifest key: { medias = { S3_BUCKET = \"…\", … } }. Built by apps/env."
   default     = {}
   sensitive   = true
 }

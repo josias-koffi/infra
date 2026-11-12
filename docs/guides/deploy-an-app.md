@@ -276,5 +276,6 @@ Rotation volontaire, depuis ton poste :
 | Un secret qu'aucun humain n'a besoin de connaître | `generate: [NOM]` |
 | Du stockage objet | `buckets: { medias: {} }` puis `uses: [medias]` |
 | Envoyer des mails | `mail: {}` puis `uses: [mail]` ; le domaine d'envoi, une fois, dans `zones/zones.yaml` |
+| Mesurer l'audience (GA4 via GTM) | `analytics: {}` puis `uses: [analytics]` : `GTM_CONTAINER_ID`, `GA_MEASUREMENT_ID` |
 | Faire suivre `contact@<domaine>` vers une boîte | `environments.<env>.emailRouting: { contact@domaine.fr: moi@gmail.com }` |
 | Un nouveau domaine | l'ajouter au compte Cloudflare, puis l'écrire dans `environments.<env>.domains` |

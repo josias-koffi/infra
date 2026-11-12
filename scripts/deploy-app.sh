@@ -10,6 +10,7 @@
 #   AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY   R2 state backend
 #   CLOUDFLARE_API_TOKEN, CF_ACCOUNT_ID               DNS in any zone of the account, buckets
 #   RESEND_ADMIN_API_KEY                              sending keys (add-on mail)
+#   GOOGLE_SERVICE_ACCOUNT_JSON, GA_ACCOUNT_ID, GTM_ACCOUNT_ID   GA4 and GTM (add-on analytics)
 #   SECRETS_JSON                                      JSON object of secret values (toJSON(secrets))
 set -euo pipefail
 
@@ -30,12 +31,15 @@ m = yaml.safe_load(open(sys.argv[1]))
 if sys.argv[2] not in m["environments"]:
     sys.exit(f"environment '{sys.argv[2]}' is not declared in {sys.argv[1]}")
 PY
-DNS_OWNED=$(mktemp) EMAIL_VERIFIED=$(mktemp)
-trap 'rm -f "$DNS_OWNED" "$EMAIL_VERIFIED"' EXIT
+DNS_OWNED=$(mktemp) EMAIL_VERIFIED=$(mktemp) ANALYTICS=$(mktemp)
+trap 'rm -f "$DNS_OWNED" "$EMAIL_VERIFIED" "$ANALYTICS"' EXIT
 python3 "$ROOT/scripts/check-dns.py" "$MANIFEST" "$ENVIRONMENT" "$DNS_OWNED"
 python3 "$ROOT/scripts/ensure-email-destinations.py" "$MANIFEST" "$ENVIRONMENT" $([ "$ACTION" = apply ] || echo --dry-run) "$EMAIL_VERIFIED"
 # Cloudflare refuses a rule towards an unconfirmed mailbox: apps/env leaves it out.
 export TF_VAR_email_verified=$(cat "$EMAIL_VERIFIED")
+# GA4 and GTM have no provider worth using: the script makes them, apps/env injects the ids.
+python3 "$ROOT/scripts/ensure-analytics.py" "$MANIFEST" "$ENVIRONMENT" $([ "$ACTION" = apply ] || echo --dry-run) "$ANALYTICS"
+export TF_VAR_analytics=$(cat "$ANALYTICS")
 
 echo "::group::${APP} — project (apps/${APP}/project.tfstate)"
 tofu -chdir="$ROOT/apps/project" init -input=false -reconfigure \

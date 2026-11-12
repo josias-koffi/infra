@@ -58,6 +58,7 @@ variables {
   environment      = "staging"
   image_tag        = "abc1234"
   cf_account_id    = "acc"
+  analytics        = { GTM_CONTAINER_ID = "GTM-ABC123", GA_MEASUREMENT_ID = "G-STAGING1" }
 }
 
 run "eu_bucket_and_scoped_token" {
@@ -144,4 +145,23 @@ run "forwarding_refused_where_routing_is_off" {
     } }
   }
   expect_failures = [cloudflare_email_routing_rule.forward]
+}
+
+run "analytics_ids_from_the_script" {
+  command = apply
+
+  assert {
+    condition     = nonsensitive(local.addons.analytics.GTM_CONTAINER_ID) == "GTM-ABC123" && nonsensitive(local.addons.analytics.GA_MEASUREMENT_ID) == "G-STAGING1"
+    error_message = "the ids ensure-analytics.py wrote reach the add-on"
+  }
+}
+
+run "analytics_without_ids_is_refused" {
+  command = plan
+
+  variables {
+    analytics = {}
+  }
+
+  expect_failures = [terraform_data.analytics]
 }

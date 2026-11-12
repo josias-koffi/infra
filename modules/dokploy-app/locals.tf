@@ -17,9 +17,13 @@ locals {
   # A literal `${` is written `$${`.
   raw_vars = merge(try(var.spec.vars, {}), try(var.env_spec.vars, {}))
 
-  # Add-ons a component can `use` (apps/env creates them): each bucket, and
-  # `mail`. Templates reach their variables as ${addons.<key>.<NAME>}.
-  addon_names = concat(keys(try(var.spec.buckets, {})), try(var.spec.mail, null) != null ? ["mail"] : [])
+  # Add-ons a component can `use` (apps/env creates them): each bucket,
+  # `mail` and `analytics`. Templates reach their variables as ${addons.<key>.<NAME>}.
+  addon_names = concat(
+    keys(try(var.spec.buckets, {})),
+    try(var.spec.mail, null) != null ? ["mail"] : [],
+    try(var.spec.analytics, null) != null ? ["analytics"] : [],
+  )
   template_ctx = {
     secrets       = local.secret_values
     addons        = var.addons

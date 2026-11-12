@@ -30,13 +30,14 @@ la prod. `apps/env` lit `platform` (destinations, serveurs) et `apps/project`
 (ID de l'environnement) en lecture seule, via `terraform_remote_state`.
 
 **Le repo de l'app ne contient que son manifest.** Le moteur (roots, module,
-script, schéma) et tous les accès (Dokploy, R2, Cloudflare, Resend) vivent
+script, schéma) et tous les accès (Dokploy, R2, Cloudflare, Resend, Google) vivent
 ici : le déploiement tourne dans ce repo (`deploy-app.yml`), l'app ne fait
 que le déclencher avec `INFRA_DEPLOY_TOKEN`.
 
 | Ressource | Root | State |
 |---|---|---|
 | Domaines d'envoi Resend, activation d'Email Routing par zone | `zones` | `zones/zones.tfstate` |
+| Propriétés GA4, flux, conteneurs GTM (add-on `analytics`) | aucun : `scripts/ensure-analytics.py`, idempotent | retrouvés par nom chez Google |
 
 ## Un déploiement, pas à pas
 
@@ -49,6 +50,7 @@ push / run ─▶ resolve.yml (réutilisable) : manifest → déployer ? où ? q
                   2. checkout     : repo de l'app (au commit) + ce repo
                   3. validate     : schéma + cohérence + noms réservés
                   4. DNS          : zone de chaque domaine, enregistrements étrangers refusés
+                     analytics    : propriété GA4, flux, conteneur GTM (scripts/ensure-analytics.py)
                   5. apps/project : projet + environnements
                   6. apps/env     : plan  ── garde-fou : refuse toute suppression
                                               de base / cache / compose / montage / bucket,
