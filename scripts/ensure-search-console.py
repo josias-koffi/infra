@@ -71,6 +71,19 @@ def tokens(api, listed):
     }
 
 
+def verified_resource(api, domain):
+    """The domain's verification as the service account sees it, or None.
+
+    Google answers 403 "not an owner" (not 404) for a domain the account has
+    not verified, also when someone else verified it by hand."""
+    r = api.s.request("GET", resource_url(domain), timeout=60)
+    if r.status_code == 404 or (r.status_code == 403 and "not an owner" in r.text.lower()):
+        return None
+    if r.status_code >= 400:
+        sys.exit(f"{LABEL}: GET {resource_url(domain)} → {r.status_code}\n{r.text}")
+    return r.json()
+
+
 def verify_domain(api, domain, wait_seconds):
     """Asks Google to check the TXT record, again while DNS catches up."""
     deadline = time.time() + wait_seconds
@@ -86,7 +99,7 @@ def verify_domain(api, domain, wait_seconds):
 
 
 def ensure(api, domain, owners, dry_run, wait_seconds=600):
-    resource = api.call("GET", resource_url(domain))
+    resource = verified_resource(api, domain)
     if resource is None:
         print(f"{LABEL}: {domain} {'would be verified' if dry_run else 'verifying'} (DNS TXT)")
         if dry_run:
