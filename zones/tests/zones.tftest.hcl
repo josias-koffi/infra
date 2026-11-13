@@ -56,9 +56,9 @@ mock_provider "cloudflare" {
 }
 
 variables {
-  config_path          = "./tests/fixture.yaml"
-  resend_api_key       = "re_test"
-  adopt_resend_domains = false # mocked providers cannot import
+  config_path           = "./tests/fixture.yaml"
+  resend_api_key        = "re_test"
+  adopt_resend_domains  = false # mocked providers cannot import
   search_console_tokens = { "shop.example.com" = "google-site-verification=TOKEN" }
 }
 
@@ -127,8 +127,8 @@ run "search_console_record_at_the_domain" {
 }
 
 run "search_console_other_txt_records_do_not_count" {
-  command   = apply
-  providers = { cloudflare = cloudflare.taken, restapi = restapi, http = http }
+  command         = apply
+  providers       = { cloudflare = cloudflare.taken, restapi = restapi, http = http }
   expect_failures = [check.foreign_mail_records_match]
 
   assert {

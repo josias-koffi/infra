@@ -41,7 +41,10 @@ jobs:
       # The TXT value Google wants for each domain under searchConsole: (public:
       # it goes into DNS). Asking again gives the same one.
       - name: Search Console tokens
-        run: echo "TF_VAR_search_console_tokens=$(scripts/ensure-search-console.py tokens zones/zones.yaml -)" >> "$GITHUB_ENV"
+        # Two lines: inside `echo "…$(…)"` a failure of the script would be lost.
+        run: |
+          tokens=$(scripts/ensure-search-console.py tokens zones/zones.yaml -)
+          echo "TF_VAR_search_console_tokens=$tokens" >> "$GITHUB_ENV"
       - run: tofu -chdir=zones init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
       - name: Plan
         run: tofu -chdir=zones plan -input=false -out=tfplan
