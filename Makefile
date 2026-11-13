@@ -45,11 +45,11 @@ platform-plan: ## Plan the Dokploy instance (settings, backup destinations, node
 platform-apply: ## Apply the Dokploy instance configuration
 	@tofu -chdir=platform init -input=false -reconfigure -backend-config="bucket=$(TF_STATE_BUCKET)" >/dev/null && tofu -chdir=platform apply
 
-zones-plan: ## Plan zones/ (sending domains and their records, zones/zones.yaml)
-	@tofu -chdir=zones init -input=false -reconfigure -backend-config="bucket=$(TF_STATE_BUCKET)" >/dev/null && tofu -chdir=zones plan
+zones-plan: ## Plan zones/ (sending domains, Search Console, their records: zones/zones.yaml)
+	@sc_tokens=$$(scripts/ensure-search-console.py tokens zones/zones.yaml -) && export TF_VAR_search_console_tokens="$$sc_tokens" && tofu -chdir=zones init -input=false -reconfigure -backend-config="bucket=$(TF_STATE_BUCKET)" >/dev/null && tofu -chdir=zones plan && scripts/ensure-search-console.py verify zones/zones.yaml --dry-run
 
-zones-apply: ## Apply zones/ (after adding a domain, a second apply writes its records)
-	@tofu -chdir=zones init -input=false -reconfigure -backend-config="bucket=$(TF_STATE_BUCKET)" >/dev/null && tofu -chdir=zones apply
+zones-apply: ## Apply zones/ (after adding a sending domain, a second apply writes its records)
+	@sc_tokens=$$(scripts/ensure-search-console.py tokens zones/zones.yaml -) && export TF_VAR_search_console_tokens="$$sc_tokens" && tofu -chdir=zones init -input=false -reconfigure -backend-config="bucket=$(TF_STATE_BUCKET)" >/dev/null && tofu -chdir=zones apply && scripts/ensure-search-console.py verify zones/zones.yaml
 
 app-plan: ## Plan one env of an app. MANIFEST=… ENV=staging [TAG=…]
 	@test -n "$(MANIFEST)" -a -n "$(ENV)" || (echo "MANIFEST= and ENV= are required" && exit 1)

@@ -22,3 +22,8 @@ output "foreign_mail_records" {
   description = "Mail records left to another owner (they already existed)."
   value       = sort([for k, es in local.foreign : local.wanted[k].name if length(es) > 0])
 }
+
+output "search_console_domains" {
+  description = "Domains whose Search Console verification record is in place (written here, or already there)."
+  value       = sort(keys(local.search_console))
+}
