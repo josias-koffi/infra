@@ -28,5 +28,10 @@ mail:
 # public repo). Opt-in: a domain left out is never touched, so a property made
 # by hand stays as it is. Listing a domain already verified by hand only adds
 # the service account as one more owner.
+#   sitemaps    sitemap URLs (https, on the domain or a subdomain) submitted to
+#               the property; one left out later is not withdrawn
 searchConsole:
-  koklo.dev: {}
+  koklo.dev:
+    sitemaps:
+      - https://koklo.dev/sitemap.xml
+      - https://jobspark.koklo.dev/sitemap.xml
