@@ -16,8 +16,9 @@ Two steps around the zones/ apply, each safe to run again:
 
     scripts/ensure-search-console.py verify <zones.yaml> [--dry-run]
         Once the records are written: verifies each domain not verified yet,
-        adds the owners missing from it (never removes one), and adds the
-        property to Search Console.
+        adds the owners missing from it (never removes one), adds the
+        property to Search Console, and submits the sitemaps listed under the
+        domain (`sitemaps: [https://…/sitemap.xml]`, never withdraws one).
 
 Environment:
   GOOGLE_SERVICE_ACCOUNT_JSON  the platform's service account (needed only
@@ -47,9 +48,16 @@ SCOPES = [
 LABEL = "search-console"
 
 
-def domains(config_path):
+def load(config_path):
+    """{ domain: settings } of searchConsole:, settings checked."""
     config = yaml.safe_load(open(config_path)) or {}
-    return sorted((config.get("searchConsole") or {}).keys())
+    listed = {d: (s or {}) for d, s in (config.get("searchConsole") or {}).items()}
+    for d, s in listed.items():
+        for url in s.get("sitemaps") or []:
+            host = urllib.parse.urlsplit(url).hostname or ""
+            if not url.startswith("https://") or not (host == d or host.endswith(f".{d}")):
+                sys.exit(f"{LABEL}: {d}: sitemap {url!r} must be an https:// URL on {d} or one of its subdomains")
+    return dict(sorted(listed.items()))
 
 
 def site(domain):
@@ -98,7 +106,23 @@ def verify_domain(api, domain, wait_seconds):
         time.sleep(30)
 
 
-def ensure(api, domain, owners, dry_run, wait_seconds=600):
+def property_url(domain):
+    return f"{WEBMASTERS}/sites/{urllib.parse.quote(f'sc-domain:{domain}', safe='')}"
+
+
+def submit_sitemaps(api, domain, sitemaps, dry_run):
+    """Submits each sitemap not known yet. One submitted by hand, or no longer
+    listed here, stays: Search Console keeps its history."""
+    known = {s["path"] for s in (api.call("GET", f"{property_url(domain)}/sitemaps") or {}).get("sitemap", [])}
+    for url in sitemaps:
+        if url in known:
+            continue
+        print(f"{LABEL}: {domain} {'would submit' if dry_run else 'submits'} {url}")
+        if not dry_run:
+            api.call("PUT", f"{property_url(domain)}/sitemaps/{urllib.parse.quote(url, safe='')}")
+
+
+def ensure(api, domain, owners, dry_run, sitemaps=(), wait_seconds=600):
     resource = verified_resource(api, domain)
     if resource is None:
         print(f"{LABEL}: {domain} {'would be verified' if dry_run else 'verifying'} (DNS TXT)")
@@ -113,8 +137,9 @@ def ensure(api, domain, owners, dry_run, wait_seconds=600):
             api.call("PUT", resource_url(domain), {"site": site(domain), "owners": resource.get("owners", []) + missing})
     if not dry_run:
         # Adding a property the account already has changes nothing.
-        api.call("PUT", f"{WEBMASTERS}/sites/{urllib.parse.quote(f'sc-domain:{domain}', safe='')}")
+        api.call("PUT", property_url(domain))
     print(f"{LABEL}: {domain} verified" + ("" if dry_run else ", in Search Console"))
+    submit_sitemaps(api, domain, sitemaps, dry_run)
 
 
 def main(argv):
@@ -122,7 +147,7 @@ def main(argv):
     args = [a for a in argv if a != "--dry-run"]
     if not args or args[0] not in ("tokens", "verify") or len(args) != (3 if args[0] == "tokens" else 2):
         sys.exit(__doc__)
-    listed = domains(args[1])
+    listed = load(args[1])
     if args[0] == "tokens":
         found = tokens(Api(session_from_env(SCOPES, LABEL), LABEL), listed) if listed else {}
         if args[2] == "-":  # for `export TF_VAR_search_console_tokens=$(…)`
@@ -132,8 +157,8 @@ def main(argv):
         return 0
     if listed:
         api, owners = Api(session_from_env(SCOPES, LABEL), LABEL), owners_from_env()
-        for d in listed:
-            ensure(api, d, owners, dry_run)
+        for d, settings in listed.items():
+            ensure(api, d, owners, dry_run, settings.get("sitemaps") or [])
     return 0
 
 
