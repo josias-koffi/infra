@@ -49,4 +49,5 @@ Déroulement :
 Prérequis :
 - un environnement GitHub `purge` avec un reviewer obligatoire ;
 - les secrets `SSH_PRIVATE_KEY` (clé SSH root du serveur) et `MANAGER_IP` ;
-- `APP_REPOS_READ_TOKEN` si le repo de l'app est privé.
+- la GitHub App de déploiement installée sur le compte du repo de l'app
+  (`DEPLOY_APP_CLIENT_ID`, `DEPLOY_APP_PRIVATE_KEY`).
