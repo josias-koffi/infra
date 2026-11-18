@@ -47,18 +47,31 @@ jobs:
     outputs:
       app: ${{ steps.m.outputs.app }}
     steps:
+      # Read access to the app repo, whichever account owns it: a GitHub App
+      # installed on each account, a token valid one hour, scoped to that repo.
+      - id: owner
+        env: { REPO: "${{ inputs.repository }}" }
+        run: echo "name=${REPO%%/*}" >> "$GITHUB_OUTPUT"
+      - id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.DEPLOY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: ${{ steps.owner.outputs.name }}
+          repositories: ${{ inputs.repository }}
+          permission-contents: read
       - uses: actions/checkout@v4
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
-          token: ${{ secrets.APP_REPOS_READ_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           sparse-checkout: ${{ inputs.manifest }}
           sparse-checkout-cone-mode: false
       # The commit must belong to the branch of the environment (as resolve.yml
       # requires on the app side): a dispatch cannot deploy any commit anywhere.
       - id: m
         env:
-          GH_TOKEN: ${{ secrets.APP_REPOS_READ_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REPO: ${{ inputs.repository }}
           REF: ${{ inputs.ref }}
           ENVIRONMENT: ${{ inputs.environment }}
@@ -92,11 +105,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { path: infra }
+      # Read access to the app repo, whichever account owns it: a GitHub App
+      # installed on each account, a token valid one hour, scoped to that repo.
+      - id: owner
+        env: { REPO: "${{ inputs.repository }}" }
+        run: echo "name=${REPO%%/*}" >> "$GITHUB_OUTPUT"
+      - id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.DEPLOY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: ${{ steps.owner.outputs.name }}
+          repositories: ${{ inputs.repository }}
+          permission-contents: read
       - uses: actions/checkout@v4
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
-          token: ${{ secrets.APP_REPOS_READ_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           path: app
       - uses: opentofu/setup-opentofu@v1
         with: { tofu_version: 1.12.3, tofu_wrapper: false }
